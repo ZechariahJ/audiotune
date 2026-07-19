@@ -7,45 +7,76 @@ struct AppAudioSettings: Codable, Equatable {
     var pinned: Bool = false
 
     var isDefault: Bool { gain == 1.0 && !muted && !pinned }
-    /// The value the render callback should apply right now.
+    /// The value the render callback should apply for this channel alone.
     var effectiveGain: Float { muted ? 0 : gain }
 }
 
-/// Persists per-app settings across launches via UserDefaults (JSON blob).
+/// Everything we persist between launches.
+private struct PersistedState: Codable {
+    var apps: [String: AppAudioSettings] = [:]
+    var master = AppAudioSettings()
+}
+
+/// Persists per-app + master settings across launches via UserDefaults (JSON).
 @MainActor
 final class SettingsStore {
-    private let defaultsKey = "appAudioSettings.v1"
-    private var map: [String: AppAudioSettings] = [:]
+    private let defaultsKey = "audiotuneState.v2"
+    private var state = PersistedState()
 
     init() { load() }
 
+    // MARK: - Per-app
+
     func settings(for key: String) -> AppAudioSettings {
-        map[key] ?? AppAudioSettings()
+        state.apps[key] ?? AppAudioSettings()
     }
 
-    /// Keys with non-default settings — used to auto-attach on launch/playback.
-    var customizedKeys: [String] { Array(map.keys) }
-
     func update(_ key: String, _ mutate: (inout AppAudioSettings) -> Void) {
-        var s = map[key] ?? AppAudioSettings()
+        var s = state.apps[key] ?? AppAudioSettings()
         mutate(&s)
         if s.isDefault {
-            map[key] = nil          // don't persist defaults; keeps the store small
+            state.apps[key] = nil       // don't persist defaults; keeps the store small
         } else {
-            map[key] = s
+            state.apps[key] = s
         }
         save()
     }
 
+    // MARK: - Master channel
+
+    var master: AppAudioSettings { state.master }
+
+    func updateMaster(_ mutate: (inout AppAudioSettings) -> Void) {
+        mutate(&state.master)
+        state.master.pinned = false     // pinning is meaningless for master
+        save()
+    }
+
+    // MARK: - Reset
+
+    /// Return every app and the master to full volume / unmuted, keeping pins.
+    func resetVolumes() {
+        for key in state.apps.keys {
+            state.apps[key]?.gain = 1.0
+            state.apps[key]?.muted = false
+            if state.apps[key]?.isDefault == true { state.apps[key] = nil }
+        }
+        state.master.gain = 1.0
+        state.master.muted = false
+        save()
+    }
+
+    // MARK: - Persistence
+
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([String: AppAudioSettings].self, from: data)
+              let decoded = try? JSONDecoder().decode(PersistedState.self, from: data)
         else { return }
-        map = decoded
+        state = decoded
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(map) {
+        if let data = try? JSONEncoder().encode(state) {
             UserDefaults.standard.set(data, forKey: defaultsKey)
         }
     }

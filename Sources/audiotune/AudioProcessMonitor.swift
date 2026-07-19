@@ -55,8 +55,13 @@ final class AudioProcessMonitor {
         var result: [AudioProcess] = []
         result.reserveCapacity(objectIDs.count)
 
+        // Never list/tap our own process — our aggregate IO is attributed to us,
+        // and tapping ourselves would create an audio feedback loop.
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+
         for objID in objectIDs {
             guard let pid: pid_t = getProperty(objID, kAudioProcessPropertyPID) else { continue }
+            if pid == ownPID { continue }
             let bundleID: String? = getCFStringProperty(objID, kAudioProcessPropertyBundleID)
             let runningOut: UInt32 = getProperty(objID, kAudioProcessPropertyIsRunningOutput) ?? 0
 

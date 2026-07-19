@@ -1,7 +1,14 @@
-[23:43:20.388] auto-attach: CapCut [com.lemon.lvoverseas] -> gain 0.3
-[23:43:20.389] ProcessTap[CapCut]: starting, process objects = [146]
-[23:43:20.394] ProcessTap[CapCut]: tap created id = 155 uuid = B957A4D9-F5A9-4980-8218-382229A35233
-[23:43:20.407] ProcessTap[CapCut]: aggregate created id = 156 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
-[23:43:26.564] ProcessTap[CapCut]: RUNNING (passthrough, gain = 0.3)
-[23:43:29.230] ProcessTap[CapCut]: callbacks = 251 frames = 257024 peak = 0.1796
-[23:43:29.231] ProcessTap[CapCut]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]
+[23:51:09.818] auto-attach: CapCut [com.lemon.lvoverseas] -> gain 0.5
+[23:51:09.819] auto-attach: Discord [com.hnc.Discord] -> gain 0.5
+[23:51:09.819] ProcessTap[Discord]: starting, process objects = [130]
+[23:51:09.819] ProcessTap[CapCut]: starting, process objects = [146]
+[23:51:09.823] ProcessTap[Discord]: tap created id = 156 uuid = B30EEF68-0361-4458-88C3-0F8A84422411
+[23:51:09.823] ProcessTap[CapCut]: tap created id = 155 uuid = 8FB2204C-863D-4AB6-AE79-C4CBA3F43FC3
+[23:51:09.849] ProcessTap[CapCut]: aggregate created id = 157 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
+[23:51:09.850] ProcessTap[Discord]: aggregate created id = 161 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
+[23:51:13.962] ProcessTap[CapCut]: RUNNING (passthrough, gain = 0.5)
+[23:51:13.963] ProcessTap[Discord]: RUNNING (passthrough, gain = 0.5)
+[23:51:16.629] ProcessTap[Discord]: callbacks = 250 frames = 256000 peak = 0.4953
+[23:51:16.629] ProcessTap[CapCut]: callbacks = 250 frames = 256000 peak = 0.0000
+[23:51:16.629] ProcessTap[Discord]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]
+[23:51:16.629] ProcessTap[CapCut]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]

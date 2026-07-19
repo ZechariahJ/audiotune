@@ -95,10 +95,11 @@ final class AppVolumeRowView: NSView {
         ])
     }
 
-    func configure(appName: String, icon: NSImage?, gain: Float, muted: Bool, pinned: Bool) {
+    func configure(appName: String, icon: NSImage?, gain: Float, muted: Bool, pinned: Bool, showsPin: Bool = true) {
         self.appName = appName
         self.muted = muted
         self.pinned = pinned
+        pinButton.isHidden = !showsPin
         nameLabel.stringValue = appName
         if let icon {
             let img = icon.copy() as! NSImage

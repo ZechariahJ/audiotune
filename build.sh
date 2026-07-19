@@ -20,9 +20,20 @@ mkdir -p "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/$BIN_NAME"
 cp bundle/Info.plist "$APP/Contents/Info.plist"
 
-echo "==> ad-hoc signing"
-codesign --force --deep --sign - \
-    --entitlements bundle/audiotune.entitlements \
-    "$APP" 2>/dev/null || codesign --force --deep --sign - "$APP"
+# Sign with a Developer ID (hardened runtime, for notarization) when
+# CODESIGN_IDENTITY is set; otherwise fall back to ad-hoc for local use.
+if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+    echo "==> signing with Developer ID + hardened runtime: $CODESIGN_IDENTITY"
+    codesign --force --deep --timestamp --options runtime \
+        --sign "$CODESIGN_IDENTITY" \
+        --entitlements bundle/audiotune.entitlements \
+        "$APP"
+    codesign --verify --strict --verbose=2 "$APP"
+else
+    echo "==> ad-hoc signing (local only; set CODESIGN_IDENTITY to notarize)"
+    codesign --force --deep --sign - \
+        --entitlements bundle/audiotune.entitlements \
+        "$APP" 2>/dev/null || codesign --force --deep --sign - "$APP"
+fi
 
 echo "==> done: $APP"

@@ -87,12 +87,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // already flipped its own pin glyph for immediate feedback.
     }
 
+    /// The gain a tap should apply: the app's own level scaled by the master.
+    private func effectiveTapGain(_ key: String) -> Float {
+        store.master.effectiveGain * store.settings(for: key).effectiveGain
+    }
+
     /// Push the current effective gain to a live tap, creating one if needed.
     /// If the tap is still starting, updating its gain is safe (the render
     /// context is shared), so slider drags apply immediately either way.
     private func applyToTap(_ key: String, _ name: String) {
         if let tap = taps[key] {
-            tap.setGain(store.settings(for: key).effectiveGain)
+            tap.setGain(effectiveTapGain(key))
             updateStatusIcon()
         } else {
             startTapAsync(key, name)
@@ -110,14 +115,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Log.msg("startTap: no process objects for \(name) [\(key)]")
             return
         }
-        let tap = ProcessTap(appName: name, processObjects: ids, gain: store.settings(for: key).effectiveGain)
+        let tap = ProcessTap(appName: name, processObjects: ids, gain: effectiveTapGain(key))
         taps[key] = tap
         Task.detached { [tap] in
             let ok = tap.start()
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 if ok {
-                    tap.setGain(self.store.settings(for: key).effectiveGain)
+                    tap.setGain(self.effectiveTapGain(key))
                 } else if self.taps[key] === tap {
                     self.taps[key] = nil
                 }
@@ -146,11 +151,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func autoAttachSavedApps() {
         let playing = dedupedByKey(monitor.processes.filter { $0.isRunningOutput })
         for proc in playing {
-            let s = store.settings(for: proc.key)
-            guard taps[proc.key] == nil, s.effectiveGain != 1.0 else { continue }
-            Log.msg("auto-attach: \(proc.name) [\(proc.key)] -> gain \(s.effectiveGain)")
+            guard taps[proc.key] == nil, effectiveTapGain(proc.key) != 1.0 else { continue }
+            Log.msg("auto-attach: \(proc.name) [\(proc.key)] -> gain \(effectiveTapGain(proc.key))")
             applyToTap(proc.key, proc.name)
         }
+    }
+
+    // MARK: - Master channel + reset
+
+    private func setMasterGain(_ value: Float) {
+        store.updateMaster {
+            $0.gain = value
+            if value > 0 { $0.muted = false }
+        }
+        applyMasterEverywhere()
+    }
+
+    private func toggleMasterMute() {
+        store.updateMaster {
+            if $0.muted {
+                $0.muted = false
+                if $0.gain == 0 { $0.gain = 1.0 }
+            } else {
+                $0.muted = true
+            }
+        }
+        applyMasterEverywhere()
+    }
+
+    /// Re-apply the master to every live tap, and attach any playing app the
+    /// master now needs to affect.
+    private func applyMasterEverywhere() {
+        for (key, tap) in taps { tap.setGain(effectiveTapGain(key)) }
+        if store.master.effectiveGain != 1.0 {
+            for proc in dedupedByKey(monitor.processes.filter { $0.isRunningOutput }) where taps[proc.key] == nil {
+                applyToTap(proc.key, proc.name)
+            }
+        }
+        updateStatusIcon()
+    }
+
+    private func resetAll() {
+        store.resetVolumes()
+        for tap in taps.values { tap.stop() }
+        taps.removeAll()
+        updateStatusIcon()
     }
 
     // MARK: - Menu (rebuilt fresh each time it opens)
@@ -166,6 +211,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let header = NSMenuItem(title: "AudioTune", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
+        menu.addItem(.separator())
+
+        menu.addItem(masterRow())
         menu.addItem(.separator())
 
         let allApps = dedupedByKey(monitor.processes.filter { $0.isRegularApp || $0.isRunningOutput })
@@ -201,9 +249,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+
+        let reset = NSMenuItem(title: "Reset all volumes", action: #selector(resetTapped), keyEquivalent: "")
+        reset.target = self
+        menu.addItem(reset)
+
+        let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
+        login.target = self
+        login.state = LoginItem.isEnabled ? .on : .off
+        menu.addItem(login)
+
+        menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit AudioTune", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
+
+    private func masterRow() -> NSMenuItem {
+        let item = NSMenuItem()
+        let row = AppVolumeRowView()
+        let masterIcon = NSImage(systemSymbolName: "hifispeaker.2.fill", accessibilityDescription: nil)
+
+        func reload() {
+            let m = store.master
+            row.configure(appName: "All Apps", icon: masterIcon,
+                          gain: m.gain, muted: m.muted, pinned: false, showsPin: false)
+        }
+        reload()
+
+        row.onGainChange = { [weak self] v in self?.setMasterGain(v) }
+        row.onToggleMute = { [weak self] in
+            self?.toggleMasterMute()
+            reload()
+        }
+        item.view = row
+        return item
     }
 
     private func dedupedByKey(_ procs: [AudioProcess]) -> [AudioProcess] {
@@ -249,10 +329,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateStatusIcon() {
         guard let button = statusItem?.button else { return }
-        let anyActive = taps.values.contains { $0.gain != 1.0 }
-        button.image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "AudioTune")
-        button.image?.isTemplate = true
+        let anyActive = taps.values.contains { $0.gain != 1.0 } || store.master.effectiveGain != 1.0
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+        let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "AudioTune")?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
+        button.image = image
         button.contentTintColor = anyActive ? .controlAccentColor : nil
+    }
+
+    @objc private func resetTapped() { resetAll() }
+
+    @objc private func toggleLoginItem(_ sender: NSMenuItem) {
+        let nowEnabled = LoginItem.setEnabled(!LoginItem.isEnabled)
+        sender.state = nowEnabled ? .on : .off
     }
 
     @objc private func quitApp() {
