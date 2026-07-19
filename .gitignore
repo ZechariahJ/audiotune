@@ -2,3 +2,5 @@
 AudioTune.app/
 *.xcodeproj
 .DS_Store
+audiotune.log
+docs/*.iconset/
