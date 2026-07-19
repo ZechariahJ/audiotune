@@ -89,23 +89,35 @@ struct MixerView: View {
 
     // MARK: - Footer
 
+    private var appearanceBinding: Binding<AppearanceMode> {
+        Binding(get: { mixer.appearance }, set: { mixer.setAppearance($0) })
+    }
+
     private var footer: some View {
-        HStack {
-            Button {
-                mixer.resetAll()
-            } label: {
-                Label("Reset all", systemImage: "arrow.counterclockwise")
+        VStack(spacing: 10) {
+            Picker("Appearance", selection: appearanceBinding) {
+                ForEach(AppearanceMode.allCases) { Text($0.label).tag($0) }
             }
-            .buttonStyle(.borderless)
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
-            Spacer()
-
-            Toggle("Launch at Login", isOn: $launchAtLogin)
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-                .onChange(of: launchAtLogin) { _, newValue in
-                    launchAtLogin = LoginItem.setEnabled(newValue)
+            HStack {
+                Button {
+                    mixer.resetAll()
+                } label: {
+                    Label("Reset all", systemImage: "arrow.counterclockwise")
                 }
+                .buttonStyle(.borderless)
+
+                Spacer()
+
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        launchAtLogin = LoginItem.setEnabled(newValue)
+                    }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

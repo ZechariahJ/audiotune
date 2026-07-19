@@ -22,6 +22,7 @@ final class AudioMixer: ObservableObject {
 
     @Published private(set) var apps: [MixerApp] = []
     @Published private(set) var master = AppAudioSettings()
+    @Published private(set) var appearance: AppearanceMode = .system
 
     private let monitor = AudioProcessMonitor()
     private let store = SettingsStore()
@@ -31,10 +32,29 @@ final class AudioMixer: ObservableObject {
 
     func start() {
         master = store.master
+        appearance = store.appearance
+        applyAppearance()
         monitor.onChange = { [weak self] in self?.onRosterChange() }
         monitor.start()
         onRosterChange()
         registerDefaultDeviceListener()
+    }
+
+    // MARK: - Appearance
+
+    func setAppearance(_ mode: AppearanceMode) {
+        store.appearance = mode
+        appearance = mode
+        applyAppearance()
+    }
+
+    /// nil appearance = follow the system (updates live when the OS switches).
+    private func applyAppearance() {
+        switch appearance {
+        case .system: NSApp.appearance = nil
+        case .light:  NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:   NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
     }
 
     func stopAll() {

@@ -14,6 +14,7 @@ device at an adjustable per-app gain.
 - **Persistent** — levels are remembered per app (by bundle id) across launches
 - **Auto-attach** — a saved level re-applies the moment an app starts playing
 - **Follows your output device** — rebuilds taps when you switch headphones/speakers
+- **Light / Dark / System appearance** — System follows the OS and updates live
 - **Launch at Login** toggle
 
 ## Requirements

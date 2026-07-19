@@ -121,6 +121,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = LoginItem.isEnabled ? .on : .off
         menu.addItem(login)
 
+        let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+        let appearanceSub = NSMenu()
+        for mode in AppearanceMode.allCases {
+            let mi = NSMenuItem(title: mode.label, action: #selector(setAppearanceMode(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = mode.rawValue
+            mi.state = (mixer.appearance == mode) ? .on : .off
+            appearanceSub.addItem(mi)
+        }
+        appearanceItem.submenu = appearanceSub
+        menu.addItem(appearanceItem)
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit AudioTune", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
@@ -188,6 +200,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {
         let nowEnabled = LoginItem.setEnabled(!LoginItem.isEnabled)
         sender.state = nowEnabled ? .on : .off
+    }
+
+    @objc private func setAppearanceMode(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let mode = AppearanceMode(rawValue: raw) else { return }
+        mixer.setAppearance(mode)
     }
 
     @objc private func quitApp() {

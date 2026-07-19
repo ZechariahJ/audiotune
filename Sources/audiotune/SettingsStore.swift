@@ -1,5 +1,18 @@
 import Foundation
 
+/// App-wide appearance preference. `.system` follows the OS (and live-updates).
+enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+}
+
 /// Per-app audio preferences, keyed by a stable app identity (bundle id).
 struct AppAudioSettings: Codable, Equatable {
     var gain: Float = 1.0
@@ -21,9 +34,17 @@ private struct PersistedState: Codable {
 @MainActor
 final class SettingsStore {
     private let defaultsKey = "audiotuneState.v2"
+    private let appearanceKey = "audiotuneAppearance" // stored separately to avoid state migration
     private var state = PersistedState()
 
     init() { load() }
+
+    // MARK: - Appearance
+
+    var appearance: AppearanceMode {
+        get { UserDefaults.standard.string(forKey: appearanceKey).flatMap(AppearanceMode.init(rawValue:)) ?? .system }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: appearanceKey) }
+    }
 
     // MARK: - Per-app
 
