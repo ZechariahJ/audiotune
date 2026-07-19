@@ -1,4 +1,0 @@
-[16:02:10.230] applicationDidFinishLaunching
-[16:02:11.775] reopen event; hasVisibleWindows = false
-[16:02:11.775] showWindow() called; window exists = false
-[16:02:11.926] window frame = (750.0, 358.0, 420.0, 592.0), visible = true, screen = Optional((0.0, 0.0, 1920.0, 1080.0))

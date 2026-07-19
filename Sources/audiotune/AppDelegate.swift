@@ -1,11 +1,14 @@
 import AppKit
 import SwiftUI
+import Carbon
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let statusMenu = NSMenu()
     private let mixer = AudioMixer()
+    private let hotKeys = GlobalHotKeys()
+    private let hud = VolumeHUD()
     private var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -22,7 +25,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         mixer.start()
         updateStatusIcon()
+        registerHotKeys()
         // Note: the window is intentionally NOT shown at launch.
+    }
+
+    // MARK: - Global hotkeys
+
+    private func registerHotKeys() {
+        let ctrlOpt = UInt32(controlKey | optionKey)
+        hotKeys.register([
+            .init(id: 1, keyCode: UInt32(kVK_UpArrow), modifiers: ctrlOpt,
+                  action: { [weak self] in self?.bumpFrontmost(0.1) }),
+            .init(id: 2, keyCode: UInt32(kVK_DownArrow), modifiers: ctrlOpt,
+                  action: { [weak self] in self?.bumpFrontmost(-0.1) }),
+            .init(id: 3, keyCode: UInt32(kVK_ANSI_M), modifiers: ctrlOpt,
+                  action: { [weak self] in self?.muteFrontmost() }),
+        ])
+    }
+
+    private func bumpFrontmost(_ delta: Float) {
+        guard let info = mixer.adjustFrontmostVolume(by: delta) else { return }
+        hud.show(name: info.name, icon: info.icon, volume: info.volume, muted: info.muted)
+        updateStatusIcon()
+    }
+
+    private func muteFrontmost() {
+        guard let info = mixer.toggleFrontmostMute() else { return }
+        hud.show(name: info.name, icon: info.icon, volume: info.volume, muted: info.muted)
+        updateStatusIcon()
     }
 
     // MARK: - Window (created lazily; opened from Dock / menu)
@@ -132,6 +162,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         appearanceItem.submenu = appearanceSub
         menu.addItem(appearanceItem)
+
+        let shortcutsItem = NSMenuItem(title: "Keyboard Shortcuts", action: nil, keyEquivalent: "")
+        let shortcutsSub = NSMenu()
+        for (label, combo) in [
+            ("Raise focused app", "⌃⌥↑"),
+            ("Lower focused app", "⌃⌥↓"),
+            ("Mute / unmute focused app", "⌃⌥M"),
+        ] {
+            let mi = NSMenuItem(title: "\(label)\t\(combo)", action: nil, keyEquivalent: "")
+            mi.isEnabled = false
+            shortcutsSub.addItem(mi)
+        }
+        shortcutsItem.submenu = shortcutsSub
+        menu.addItem(shortcutsItem)
 
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit AudioTune", action: #selector(quitApp), keyEquivalent: "q")

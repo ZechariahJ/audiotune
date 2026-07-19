@@ -126,6 +126,41 @@ final class AudioMixer: ObservableObject {
         rebuildApps() // pinning moves the app between sections
     }
 
+    // MARK: - Frontmost-app control (for global hotkeys)
+
+    struct HUDInfo {
+        let name: String
+        let icon: NSImage?
+        let volume: Float
+        let muted: Bool
+    }
+
+    private func frontmostApp() -> (key: String, name: String, icon: NSImage?)? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              let bundleID = app.bundleIdentifier,
+              bundleID != Bundle.main.bundleIdentifier else { return nil }
+        let icon = app.icon ?? app.bundleURL.map { NSWorkspace.shared.icon(forFile: $0.path) }
+        return (bundleID, app.localizedName ?? bundleID, icon)
+    }
+
+    @discardableResult
+    func adjustFrontmostVolume(by delta: Float) -> HUDInfo? {
+        guard let f = frontmostApp() else { return nil }
+        let current = store.settings(for: f.key).gain
+        let newGain = max(0, min(1, ((current + delta) * 100).rounded() / 100))
+        setGain(f.key, f.name, newGain)
+        let s = store.settings(for: f.key)
+        return HUDInfo(name: f.name, icon: f.icon, volume: s.effectiveGain, muted: s.muted)
+    }
+
+    @discardableResult
+    func toggleFrontmostMute() -> HUDInfo? {
+        guard let f = frontmostApp() else { return nil }
+        toggleMute(f.key, f.name)
+        let s = store.settings(for: f.key)
+        return HUDInfo(name: f.name, icon: f.icon, volume: s.effectiveGain, muted: s.muted)
+    }
+
     // MARK: - Master + reset
 
     func setMasterGain(_ value: Float) {
