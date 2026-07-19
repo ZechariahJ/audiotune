@@ -34,11 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func registerHotKeys() {
         let ctrlOpt = UInt32(controlKey | optionKey)
         hotKeys.register([
-            .init(id: 1, keyCode: UInt32(kVK_UpArrow), modifiers: ctrlOpt,
-                  action: { [weak self] in self?.bumpFrontmost(0.1) }),
-            .init(id: 2, keyCode: UInt32(kVK_DownArrow), modifiers: ctrlOpt,
-                  action: { [weak self] in self?.bumpFrontmost(-0.1) }),
-            .init(id: 3, keyCode: UInt32(kVK_ANSI_M), modifiers: ctrlOpt,
+            .init(id: 1, keyCode: UInt32(kVK_UpArrow), modifiers: ctrlOpt, repeats: true,
+                  action: { [weak self] in self?.bumpFrontmost(0.05) }),
+            .init(id: 2, keyCode: UInt32(kVK_DownArrow), modifiers: ctrlOpt, repeats: true,
+                  action: { [weak self] in self?.bumpFrontmost(-0.05) }),
+            .init(id: 3, keyCode: UInt32(kVK_ANSI_M), modifiers: ctrlOpt, repeats: false,
                   action: { [weak self] in self?.muteFrontmost() }),
         ])
     }
