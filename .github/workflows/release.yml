@@ -1,0 +1,43 @@
+name: Release
+
+# Build AudioTune.app and attach it to a GitHub Release whenever you push a
+# version tag, e.g.:  git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+permissions:
+  contents: write # needed to create the Release
+
+jobs:
+  build:
+    runs-on: macos-15 # has the macOS 14.4+ SDK the process-tap API needs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Build AudioTune.app (release, ad-hoc signed)
+        run: ./build.sh release
+
+      - name: Zip the app
+        run: ditto -c -k --keepParent AudioTune.app AudioTune.zip
+
+      - name: Create / update the Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="manual-$(git rev-parse --short HEAD)"
+            gh release create "$TAG" AudioTune.zip --title "$TAG" \
+              --notes "Manual build. Unsigned — see README for first-launch steps." || \
+            gh release upload "$TAG" AudioTune.zip --clobber
+          else
+            gh release create "$TAG" AudioTune.zip --generate-notes \
+              --title "AudioTune $TAG" || \
+            gh release upload "$TAG" AudioTune.zip --clobber
+          fi

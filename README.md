@@ -19,17 +19,39 @@ device at an adjustable per-app gain.
 ## Requirements
 
 - macOS 14.4 or later (Apple Silicon or Intel)
-- Swift toolchain (Xcode or Command Line Tools)
 
-## Build & run
+## Install
+
+### Option A — download the prebuilt app
+
+1. Grab `AudioTune.zip` from the [latest release](../../releases/latest) and unzip it.
+2. Move `AudioTune.app` to `/Applications`.
+3. **First launch only:** because the app isn't notarized, macOS blocks it once.
+   Either:
+   - Open it, then go to **System Settings → Privacy & Security**, scroll down,
+     and click **"Open Anyway"**, **or**
+   - run this in Terminal to clear the download flag:
+     ```sh
+     xattr -dr com.apple.quarantine /Applications/AudioTune.app
+     ```
+4. The first time you move a volume slider, macOS asks for **audio-recording**
+   permission — click **Allow** (this is what lets AudioTune tap app audio).
+
+> Why the warning? AudioTune is open-source and ad-hoc signed, not notarized
+> through Apple's paid program. The warning is about *distribution*, not safety —
+> the code is all in this repo. It works identically once past the first launch.
+
+### Option B — build from source (no Gatekeeper prompt)
+
+Needs the Swift toolchain (Xcode or Command Line Tools). Locally-built apps
+aren't quarantined, so there's no warning:
 
 ```sh
-./build.sh            # debug build -> AudioTune.app (ad-hoc signed, local use)
+git clone https://github.com/ZechariahJ/audiotune.git
+cd audiotune
+./build.sh            # -> AudioTune.app (ad-hoc signed, local use)
 open AudioTune.app
 ```
-
-The first time you adjust an app's volume, macOS asks for audio-recording
-permission — click **Allow** (required for the tap API).
 
 ## Distribution (code-signing + notarization)
 
