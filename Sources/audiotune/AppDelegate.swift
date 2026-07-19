@@ -234,7 +234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .withSymbolConfiguration(config)
         image?.isTemplate = true
         button.image = image
-        button.contentTintColor = mixer.isAnythingAttenuated ? .controlAccentColor : nil
+        // Force white in the menu bar (accent-tinted when something is turned down).
+        button.contentTintColor = mixer.isAnythingAttenuated ? .controlAccentColor : .white
     }
 
     // MARK: - Actions
