@@ -1,8 +1,11 @@
-[23:26:11.855] launch-test: will attempt passthrough for 'CapCut' in 1.5s
-[23:26:13.463] ProcessTap[CapCut]: starting, process objects = [146]
-[23:26:13.466] ProcessTap[CapCut]: tap created id = 155 uuid = 19D16E3A-5E02-4E2C-9A63-DE0B66875D4E
-[23:26:13.478] ProcessTap[CapCut]: aggregate created id = 156 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
-[23:26:14.910] ProcessTap[CapCut]: RUNNING (passthrough, gain = 1.0)
-[23:26:14.911] launch-test: startTap(CapCut) -> true
-[23:26:17.535] ProcessTap[CapCut]: callbacks = 246 frames = 251904 peak = 0.5491
-[23:26:17.535] ProcessTap[CapCut]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]
+[23:32:05.262] launch-test: gain sweep on 'CapCut' in 1.5s (keep it playing)
+[23:32:06.871] ProcessTap[CapCut]: starting, process objects = [146]
+[23:32:06.876] ProcessTap[CapCut]: tap created id = 155 uuid = D711AA3A-EEDE-44CD-AB4A-0455BF4B3689
+[23:32:06.889] ProcessTap[CapCut]: aggregate created id = 156 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
+[23:32:09.102] ProcessTap[CapCut]: RUNNING (passthrough, gain = 1.0)
+[23:32:10.152] launch-test: gain 1.00 -> output peak 0.0000
+[23:32:11.202] launch-test: gain 0.50 -> output peak 0.2753
+[23:32:11.727] ProcessTap[CapCut]: callbacks = 247 frames = 252928 peak = 0.0571
+[23:32:11.727] ProcessTap[CapCut]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]
+[23:32:12.252] launch-test: gain 0.10 -> output peak 0.0571
+[23:32:13.302] launch-test: gain 1.00 -> output peak 0.5390

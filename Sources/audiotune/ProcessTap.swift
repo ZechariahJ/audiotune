@@ -104,6 +104,9 @@ final class ProcessTap {
 
     func setGain(_ value: Float) { context.gain = value }
 
+    var currentPeak: Float { context.peak }
+    func resetPeak() { context.peak = 0 }
+
     /// Build the tap + aggregate and start rendering. Returns true on success.
     @discardableResult
     func start() -> Bool {
