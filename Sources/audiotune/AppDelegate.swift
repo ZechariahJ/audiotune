@@ -6,76 +6,150 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private let monitor = AudioProcessMonitor()
+    private let store = SettingsStore()
 
-    private var taps: [String: ProcessTap] = [:]     // active taps keyed by app name
-    private var gains: [String: Float] = [:]         // last non-muted gain per app
-    private var mutedApps: Set<String> = []          // apps currently muted
+    private var taps: [String: ProcessTap] = [:]   // active taps keyed by stable app key
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "AudioTune")
-            button.image?.isTemplate = true
-        }
+        updateStatusIcon()
 
         menu.delegate = self
         statusItem.menu = menu
 
-        // Keep the roster warm and prune taps for apps that quit.
-        monitor.onChange = { [weak self] in self?.pruneDeadTaps() }
+        monitor.onChange = { [weak self] in self?.onRosterChange() }
         monitor.start()
+        onRosterChange() // apply saved levels to whatever is already playing
 
-        maybeRunLaunchTest()
+        registerDefaultDeviceListener()
     }
 
-    // MARK: - Gain / mute state
-
-    private func effectiveGain(_ name: String) -> Float {
-        mutedApps.contains(name) ? 0 : (gains[name] ?? 1.0)
+    /// Rebuild active taps when the default output device changes (e.g. plugging
+    /// in headphones) so tapped audio follows the new device instead of dying.
+    private func registerDefaultDeviceListener() {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &address, DispatchQueue.main
+        ) { [weak self] _, _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.taps.isEmpty else { return }
+                Log.msg("default output changed — rebuilding \(self.taps.count) tap(s)")
+                self.rebuildAllTaps()
+            }
+        }
     }
 
-    private func setGain(_ name: String, _ value: Float) {
-        gains[name] = value
-        if value > 0 { mutedApps.remove(name) }
-        if let tap = ensureTap(name) { tap.setGain(effectiveGain(name)) }
+    private func rebuildAllTaps() {
+        let entries = taps.map { (key: $0.key, name: $0.value.appName) }
+        for entry in entries {
+            taps[entry.key]?.stop()
+            taps[entry.key] = nil
+        }
+        monitor.refresh()
+        for entry in entries { startTapAsync(entry.key, entry.name) }
     }
 
-    private func toggleMute(_ name: String) {
-        if mutedApps.contains(name) {
-            mutedApps.remove(name)
-            if (gains[name] ?? 1.0) == 0 { gains[name] = 1.0 } // avoid unmuting to silence
+    private func onRosterChange() {
+        pruneDeadTaps()
+        autoAttachSavedApps()
+        updateStatusIcon()
+    }
+
+    // MARK: - State (persisted, keyed by stable app key)
+
+    private func setGain(_ key: String, _ name: String, _ value: Float) {
+        store.update(key) {
+            $0.gain = value
+            if value > 0 { $0.muted = false }
+        }
+        applyToTap(key, name)
+    }
+
+    private func toggleMute(_ key: String, _ name: String) {
+        store.update(key) {
+            if $0.muted {
+                $0.muted = false
+                if $0.gain == 0 { $0.gain = 1.0 } // avoid unmuting into silence
+            } else {
+                $0.muted = true
+            }
+        }
+        applyToTap(key, name)
+    }
+
+    private func togglePin(_ key: String) {
+        store.update(key) { $0.pinned.toggle() }
+        // Structural move between sections happens on next menu open; the row
+        // already flipped its own pin glyph for immediate feedback.
+    }
+
+    /// Push the current effective gain to a live tap, creating one if needed.
+    /// If the tap is still starting, updating its gain is safe (the render
+    /// context is shared), so slider drags apply immediately either way.
+    private func applyToTap(_ key: String, _ name: String) {
+        if let tap = taps[key] {
+            tap.setGain(store.settings(for: key).effectiveGain)
+            updateStatusIcon()
         } else {
-            mutedApps.insert(name)
+            startTapAsync(key, name)
         }
-        if let tap = ensureTap(name) { tap.setGain(effectiveGain(name)) }
     }
 
-    /// Lazily create (and start) a tap for an app the first time it's controlled.
-    private func ensureTap(_ name: String) -> ProcessTap? {
-        if let existing = taps[name] { return existing }
-        let ids = processObjectIDs(forAppNamed: name)
+    /// Create and start a tap off the main thread — AudioDeviceStart can block
+    /// for seconds, which would otherwise freeze the menu. The tap is reserved
+    /// in `taps` immediately so we never start two for one app and so gain
+    /// changes during startup land on the shared render context.
+    private func startTapAsync(_ key: String, _ name: String) {
+        guard taps[key] == nil else { return }
+        let ids = processObjectIDs(forKey: key)
         guard !ids.isEmpty else {
-            Log.msg("ensureTap: no process objects for \(name)")
-            return nil
+            Log.msg("startTap: no process objects for \(name) [\(key)]")
+            return
         }
-        let tap = ProcessTap(appName: name, processObjects: ids, gain: effectiveGain(name))
-        guard tap.start() else { return nil }
-        taps[name] = tap
-        return tap
+        let tap = ProcessTap(appName: name, processObjects: ids, gain: store.settings(for: key).effectiveGain)
+        taps[key] = tap
+        Task.detached { [tap] in
+            let ok = tap.start()
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if ok {
+                    tap.setGain(self.store.settings(for: key).effectiveGain)
+                } else if self.taps[key] === tap {
+                    self.taps[key] = nil
+                }
+                self.updateStatusIcon()
+            }
+        }
     }
 
-    private func processObjectIDs(forAppNamed name: String) -> [AudioObjectID] {
-        let matches = monitor.processes.filter { $0.name == name }
+    private func processObjectIDs(forKey key: String) -> [AudioObjectID] {
+        let matches = monitor.processes.filter { $0.key == key }
         let producing = matches.filter { $0.isRunningOutput }
         return (producing.isEmpty ? matches : producing).map(\.id)
     }
 
     private func pruneDeadTaps() {
-        let liveNames = Set(monitor.processes.map(\.name))
-        for name in taps.keys where !liveNames.contains(name) {
-            taps[name]?.stop()
-            taps[name] = nil
-            Log.msg("pruned tap for departed app: \(name)")
+        let liveKeys = Set(monitor.processes.map(\.key))
+        for key in taps.keys where !liveKeys.contains(key) {
+            taps[key]?.stop()
+            taps[key] = nil
+            Log.msg("pruned tap for departed app: \(key)")
+        }
+    }
+
+    /// When an app with saved non-default levels is playing, attach and apply
+    /// them automatically — so a level you set once "sticks" without reopening.
+    private func autoAttachSavedApps() {
+        let playing = dedupedByKey(monitor.processes.filter { $0.isRunningOutput })
+        for proc in playing {
+            let s = store.settings(for: proc.key)
+            guard taps[proc.key] == nil, s.effectiveGain != 1.0 else { continue }
+            Log.msg("auto-attach: \(proc.name) [\(proc.key)] -> gain \(s.effectiveGain)")
+            applyToTap(proc.key, proc.name)
         }
     }
 
@@ -94,25 +168,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(header)
         menu.addItem(.separator())
 
-        let active = dedupedByName(monitor.processes.filter { $0.isRunningOutput })
-        let activeNames = Set(active.map(\.name))
-        let idle = dedupedByName(
-            monitor.processes.filter { !$0.isRunningOutput && $0.isRegularApp && !activeNames.contains($0.name) }
-        )
+        let allApps = dedupedByKey(monitor.processes.filter { $0.isRegularApp || $0.isRunningOutput })
+        let playingKeys = Set(monitor.processes.filter { $0.isRunningOutput }.map(\.key))
 
-        if active.isEmpty {
-            let placeholder = NSMenuItem(title: "No apps playing audio", action: nil, keyEquivalent: "")
+        func isMain(_ p: AudioProcess) -> Bool {
+            playingKeys.contains(p.key) || store.settings(for: p.key).pinned
+        }
+        let main = allApps.filter(isMain).sorted { lhs, rhs in
+            let lp = playingKeys.contains(lhs.key), rp = playingKeys.contains(rhs.key)
+            if lp != rp { return lp }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+        let other = allApps.filter { !isMain($0) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        if main.isEmpty {
+            let placeholder = NSMenuItem(title: "No apps playing or pinned", action: nil, keyEquivalent: "")
             placeholder.isEnabled = false
             menu.addItem(placeholder)
         } else {
-            for proc in active { menu.addItem(sliderRow(for: proc)) }
+            for proc in main { menu.addItem(sliderRow(for: proc)) }
         }
 
-        if !idle.isEmpty {
+        if !other.isEmpty {
             menu.addItem(.separator())
             let sub = NSMenu()
-            for proc in idle { sub.addItem(sliderRow(for: proc)) }
-            let item = NSMenuItem(title: "Other apps (\(idle.count))", action: nil, keyEquivalent: "")
+            for proc in other { sub.addItem(sliderRow(for: proc)) }
+            let item = NSMenuItem(title: "All apps — pin to add above (\(other.count))",
+                                  action: nil, keyEquivalent: "")
             item.submenu = sub
             menu.addItem(item)
         }
@@ -123,68 +206,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(quit)
     }
 
-    private func dedupedByName(_ procs: [AudioProcess]) -> [AudioProcess] {
+    private func dedupedByKey(_ procs: [AudioProcess]) -> [AudioProcess] {
         var seen = Set<String>()
-        return procs.filter { seen.insert($0.name).inserted }
+        return procs.filter { seen.insert($0.key).inserted }
+    }
+
+    private func icon(for proc: AudioProcess) -> NSImage? {
+        if let url = proc.bundleURL {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        if let app = NSRunningApplication(processIdentifier: proc.pid), let i = app.icon {
+            return i
+        }
+        return NSImage(systemSymbolName: "app.dashed", accessibilityDescription: nil)
     }
 
     private func sliderRow(for proc: AudioProcess) -> NSMenuItem {
         let item = NSMenuItem()
         let row = AppVolumeRowView()
+        let key = proc.key
         let name = proc.name
-        let icon = NSRunningApplication(processIdentifier: proc.pid)?.icon
+        let appIcon = icon(for: proc)
 
-        row.configure(
-            appName: name,
-            icon: icon,
-            gain: gains[name] ?? 1.0,
-            muted: mutedApps.contains(name)
-        )
-        row.onGainChange = { [weak self] v in self?.setGain(name, v) }
-        row.onToggleMute = { [weak self, weak row] in
-            guard let self else { return }
-            self.toggleMute(name)
-            row?.configure(
-                appName: name,
-                icon: icon,
-                gain: self.gains[name] ?? 1.0,
-                muted: self.mutedApps.contains(name)
-            )
+        func reload() {
+            let s = store.settings(for: key)
+            row.configure(appName: name, icon: appIcon, gain: s.gain, muted: s.muted, pinned: s.pinned)
         }
+        reload()
+
+        row.onGainChange = { [weak self] v in self?.setGain(key, name, v) }
+        row.onToggleMute = { [weak self] in
+            self?.toggleMute(key, name)
+            reload()
+        }
+        row.onTogglePin = { [weak self] in self?.togglePin(key) }
 
         item.view = row
         return item
     }
 
-    // MARK: - Launch test hook (kept for headless verification)
+    // MARK: - Status-bar icon reflects whether anything is attenuated
 
-    private func maybeRunLaunchTest() {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Documents/audiotune")
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path),
-              let marker = files.first(where: { $0.hasPrefix(".test-") }) else { return }
-        let appName = String(marker.dropFirst(".test-".count))
-        Log.msg("launch-test: gain sweep on '\(appName)' in 1.5s (keep it playing)")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self else { return }
-            self.monitor.refresh()
-            self.setGain(appName, 1.0)          // creates the tap
-            self.sweep(appName, gains: [1.0, 0.5, 0.1, 1.0], step: 0)
-        }
-    }
-
-    /// Measure output peak at each gain to confirm scaling. Peaks should track
-    /// the gain ratio (given a steady source), proving the slider attenuates.
-    private func sweep(_ name: String, gains: [Float], step: Int) {
-        guard step < gains.count, let tap = taps[name] else { return }
-        let g = gains[step]
-        setGain(name, g)
-        tap.resetPeak()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self, let tap = self.taps[name] else { return }
-            Log.msg(String(format: "launch-test: gain %.2f -> output peak %.4f", g, tap.currentPeak))
-            self.sweep(name, gains: gains, step: step + 1)
-        }
+    private func updateStatusIcon() {
+        guard let button = statusItem?.button else { return }
+        let anyActive = taps.values.contains { $0.gain != 1.0 }
+        button.image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "AudioTune")
+        button.image?.isTemplate = true
+        button.contentTintColor = anyActive ? .controlAccentColor : nil
     }
 
     @objc private func quitApp() {

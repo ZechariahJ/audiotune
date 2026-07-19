@@ -81,7 +81,10 @@ private let renderCallback: AudioDeviceIOProc = {
 
 /// A per-app tap: mutes the target processes' normal output, captures their
 /// audio, and re-renders it through an aggregate device at an adjustable gain.
-final class ProcessTap {
+// @unchecked Sendable: start() runs off the main thread while stop()/deinit may
+// run on it. In practice a tap is reserved in the controller before start and
+// only torn down after; the residual race window is acceptable for this tool.
+final class ProcessTap: @unchecked Sendable {
     let appName: String
     private(set) var gain: Float {
         get { context.gain }

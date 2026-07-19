@@ -6,7 +6,9 @@ struct AudioProcess: Identifiable, Equatable {
     let id: AudioObjectID          // Core Audio process-object id
     let pid: pid_t
     let bundleID: String?
+    let key: String                // stable per-app identity (parent bundle id for helpers)
     let name: String               // best display name we can resolve (parent app for helpers)
+    let bundleURL: URL?            // app bundle, for reliable icon lookup
     let isRunningOutput: Bool      // currently producing output audio
     let isRegularApp: Bool         // a user-facing app (not a daemon/agent)
 
@@ -58,15 +60,17 @@ final class AudioProcessMonitor {
             let bundleID: String? = getCFStringProperty(objID, kAudioProcessPropertyBundleID)
             let runningOut: UInt32 = getProperty(objID, kAudioProcessPropertyIsRunningOutput) ?? 0
 
-            let (name, isRegular) = resolveApp(pid: pid, bundleID: bundleID)
+            let info = resolveApp(pid: pid, bundleID: bundleID)
             result.append(
                 AudioProcess(
                     id: objID,
                     pid: pid,
                     bundleID: bundleID,
-                    name: name,
+                    key: info.key,
+                    name: info.name,
+                    bundleURL: info.bundleURL,
                     isRunningOutput: runningOut != 0,
-                    isRegularApp: isRegular
+                    isRegularApp: info.isRegular
                 )
             )
         }
@@ -132,27 +136,59 @@ final class AudioProcessMonitor {
         return s as String
     }
 
-    /// Resolve a friendly name and whether this is a real user-facing app.
-    /// Helper processes (e.g. "Discord Helper (Renderer)", bundle
-    /// `com.hnc.Discord.helper.Renderer`) are rolled up to their parent app.
-    private static func resolveApp(pid: pid_t, bundleID: String?) -> (name: String, isRegular: Bool) {
-        // Try to roll a helper up to its parent app via bundle-ID prefix.
+    private struct AppInfo {
+        var key: String
+        var name: String
+        var bundleURL: URL?
+        var isRegular: Bool
+    }
+
+    /// Resolve a stable identity, friendly name, bundle URL (for icons), and
+    /// whether this is a real user-facing app. Helper processes (e.g. "Discord
+    /// Helper (Renderer)", bundle `com.hnc.Discord.helper.Renderer`) are rolled
+    /// up to their parent app so one app shows once and shares one identity.
+    private static func resolveApp(pid: pid_t, bundleID: String?) -> AppInfo {
+        // Roll a helper up to its parent app via bundle-ID prefix.
         if let bundleID, let range = bundleID.range(of: ".helper") {
             let parentID = String(bundleID[bundleID.startIndex..<range.lowerBound])
-            if let parent = NSRunningApplication.runningApplications(withBundleIdentifier: parentID).first,
-               let name = parent.localizedName {
-                return (name, parent.activationPolicy == .regular)
+            if let parent = NSRunningApplication.runningApplications(withBundleIdentifier: parentID).first {
+                return AppInfo(
+                    key: parentID,
+                    name: parent.localizedName ?? parentID,
+                    bundleURL: parent.bundleURL ?? appURL(forBundleID: parentID),
+                    isRegular: parent.activationPolicy == .regular
+                )
+            }
+            // Parent isn't a separate running process (self-contained app): still
+            // use the parent bundle id as the identity and look up its icon.
+            if let url = appURL(forBundleID: parentID) {
+                return AppInfo(key: parentID, name: url.deletingPathExtension().lastPathComponent,
+                               bundleURL: url, isRegular: true)
             }
         }
 
         if let app = NSRunningApplication(processIdentifier: pid) {
-            let name = app.localizedName ?? bundleID ?? "PID \(pid)"
-            return (name, app.activationPolicy == .regular)
+            let key = app.bundleIdentifier ?? bundleID ?? "pid:\(pid)"
+            return AppInfo(
+                key: key,
+                name: app.localizedName ?? bundleID ?? "PID \(pid)",
+                bundleURL: app.bundleURL ?? bundleID.flatMap(appURL(forBundleID:)),
+                isRegular: app.activationPolicy == .regular
+            )
         }
 
         if let bundleID, !bundleID.isEmpty {
-            return (bundleID.components(separatedBy: ".").last ?? bundleID, false)
+            return AppInfo(
+                key: bundleID,
+                name: bundleID.components(separatedBy: ".").last ?? bundleID,
+                bundleURL: appURL(forBundleID: bundleID),
+                isRegular: false
+            )
         }
-        return ("PID \(pid)", false)
+        return AppInfo(key: "pid:\(pid)", name: "PID \(pid)", bundleURL: nil, isRegular: false)
+    }
+
+    private static func appURL(forBundleID bundleID: String) -> URL? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
     }
 }

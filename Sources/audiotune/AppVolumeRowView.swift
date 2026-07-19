@@ -10,14 +10,17 @@ final class AppVolumeRowView: NSView {
     private let iconView = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let percentLabel = NSTextField(labelWithString: "")
+    private let pinButton = NSButton()
     private let muteButton = NSButton()
     private let slider = NSSlider()
 
     var onGainChange: ((Float) -> Void)?
     var onToggleMute: (() -> Void)?
+    var onTogglePin: (() -> Void)?
 
     private(set) var appName = ""
     private var muted = false
+    private var pinned = false
 
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: Self.rowWidth, height: Self.rowHeight))
@@ -36,6 +39,14 @@ final class AppVolumeRowView: NSView {
         percentLabel.textColor = .secondaryLabelColor
         percentLabel.alignment = .right
 
+        pinButton.isBordered = false
+        pinButton.bezelStyle = .regularSquare
+        pinButton.imagePosition = .imageOnly
+        pinButton.target = self
+        pinButton.action = #selector(pinTapped)
+        pinButton.setButtonType(.momentaryChange)
+        pinButton.toolTip = "Keep this app in the main menu"
+
         muteButton.isBordered = false
         muteButton.bezelStyle = .regularSquare
         muteButton.imagePosition = .imageOnly
@@ -49,7 +60,7 @@ final class AppVolumeRowView: NSView {
         slider.target = self
         slider.action = #selector(sliderMoved)
 
-        for v in [iconView, nameLabel, percentLabel, muteButton, slider] {
+        for v in [iconView, nameLabel, percentLabel, pinButton, muteButton, slider] {
             v.translatesAutoresizingMaskIntoConstraints = false
             addSubview(v)
         }
@@ -63,7 +74,12 @@ final class AppVolumeRowView: NSView {
             nameLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
             nameLabel.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
 
-            percentLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            pinButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            pinButton.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
+            pinButton.widthAnchor.constraint(equalToConstant: 18),
+            pinButton.heightAnchor.constraint(equalToConstant: 18),
+
+            percentLabel.trailingAnchor.constraint(equalTo: pinButton.leadingAnchor, constant: -8),
             percentLabel.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
             percentLabel.leadingAnchor.constraint(greaterThanOrEqualTo: nameLabel.trailingAnchor, constant: 8),
             percentLabel.widthAnchor.constraint(equalToConstant: 40),
@@ -79,9 +95,10 @@ final class AppVolumeRowView: NSView {
         ])
     }
 
-    func configure(appName: String, icon: NSImage?, gain: Float, muted: Bool) {
+    func configure(appName: String, icon: NSImage?, gain: Float, muted: Bool, pinned: Bool) {
         self.appName = appName
         self.muted = muted
+        self.pinned = pinned
         nameLabel.stringValue = appName
         if let icon {
             let img = icon.copy() as! NSImage
@@ -94,6 +111,7 @@ final class AppVolumeRowView: NSView {
         slider.floatValue = shown
         updatePercent(shown)
         updateMuteIcon()
+        updatePinIcon()
     }
 
     // MARK: - Actions
@@ -112,6 +130,12 @@ final class AppVolumeRowView: NSView {
         onToggleMute?()
     }
 
+    @objc private func pinTapped() {
+        pinned.toggle()
+        updatePinIcon()
+        onTogglePin?()
+    }
+
     private func updatePercent(_ v: Float) {
         percentLabel.stringValue = "\(Int((v * 100).rounded()))%"
     }
@@ -120,5 +144,11 @@ final class AppVolumeRowView: NSView {
         let name = (muted || slider.floatValue == 0) ? "speaker.slash.fill" : "speaker.wave.2.fill"
         muteButton.image = NSImage(systemSymbolName: name, accessibilityDescription: muted ? "Unmute" : "Mute")
         muteButton.contentTintColor = muted ? .systemRed : .secondaryLabelColor
+    }
+
+    private func updatePinIcon() {
+        let name = pinned ? "pin.fill" : "pin"
+        pinButton.image = NSImage(systemSymbolName: name, accessibilityDescription: pinned ? "Unpin" : "Pin")
+        pinButton.contentTintColor = pinned ? .controlAccentColor : .tertiaryLabelColor
     }
 }
