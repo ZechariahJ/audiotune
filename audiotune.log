@@ -1,0 +1,8 @@
+[23:26:11.855] launch-test: will attempt passthrough for 'CapCut' in 1.5s
+[23:26:13.463] ProcessTap[CapCut]: starting, process objects = [146]
+[23:26:13.466] ProcessTap[CapCut]: tap created id = 155 uuid = 19D16E3A-5E02-4E2C-9A63-DE0B66875D4E
+[23:26:13.478] ProcessTap[CapCut]: aggregate created id = 156 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
+[23:26:14.910] ProcessTap[CapCut]: RUNNING (passthrough, gain = 1.0)
+[23:26:14.911] launch-test: startTap(CapCut) -> true
+[23:26:17.535] ProcessTap[CapCut]: callbacks = 246 frames = 251904 peak = 0.5491
+[23:26:17.535] ProcessTap[CapCut]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]

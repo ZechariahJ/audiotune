@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "audiotune",
     platforms: [
-        .macOS(.v14) // Core Audio process-tap API requires macOS 14.4+
+        .macOS("14.4") // Core Audio process-tap API requires macOS 14.4+
     ],
     targets: [
         .executableTarget(
