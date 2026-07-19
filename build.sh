@@ -19,6 +19,9 @@ mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/$BIN_NAME"
 cp bundle/Info.plist "$APP/Contents/Info.plist"
+if [ -f bundle/AppIcon.icns ]; then
+    cp bundle/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+fi
 
 # Sign with a Developer ID (hardened runtime, for notarization) when
 # CODESIGN_IDENTITY is set; otherwise fall back to ad-hoc for local use.
