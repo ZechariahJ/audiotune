@@ -1,0 +1,4 @@
+.build/
+AudioTune.app/
+*.xcodeproj
+.DS_Store
