@@ -5,6 +5,10 @@ driver — it uses the modern Core Audio process-tap API (macOS 14.4+) to tap ea
 app's audio, mute its direct output, and re-render it through a private aggregate
 device at an adjustable per-app gain.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="AudioTune lowering Photos' volume while Music and Safari stay at 100%" width="430">
+</p>
+
 ## Features
 
 - **Per-app volume sliders** in the menu bar, live as you drag

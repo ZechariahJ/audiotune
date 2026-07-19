@@ -1,2 +1,35 @@
 [17:11:07.683] hotkey 2 pressed
 [17:11:07.683] hotkey 2 released
+[17:14:47.470] ProcessTap[Claude]: starting, process objects = [142, 143, 144]
+[17:14:47.484] ProcessTap[Claude]: tap created id = 153 uuid = EE6DCF16-612A-4B82-905E-AC013FFEC90C
+[17:14:47.503] ProcessTap[Claude]: aggregate created id = 154 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
+[17:14:48.034] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:48.133] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:48.478] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:48.594] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:48.750] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:48.856] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:49.027] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:49.207] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:49.732] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:49.832] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:49.931] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:50.031] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:50.132] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:50.253] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:50.332] startTap: no process objects for UserNotificationCenter [com.apple.UserNotificationCenter]
+[17:14:52.741] ProcessTap[Claude]: RUNNING (passthrough, gain = 0.95)
+[17:14:55.312] ProcessTap[Claude]: callbacks = 242 frames = 247808 peak = 0.0000
+[17:14:55.312] ProcessTap[Claude]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]
+[17:16:28.940] ProcessTap[Microsoft Edge]: starting, process objects = [134]
+[17:16:28.940] ProcessTap[Discord]: starting, process objects = [130]
+[17:16:28.947] ProcessTap[Microsoft Edge]: tap created id = 158 uuid = 001BF7AF-4525-4F3A-A1CF-049824A48F85
+[17:16:28.948] ProcessTap[Discord]: tap created id = 159 uuid = F6AD5581-B9D1-4D42-9232-30EC2D85097C
+[17:16:28.971] ProcessTap[Microsoft Edge]: aggregate created id = 160 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
+[17:16:28.972] ProcessTap[Discord]: aggregate created id = 164 output = AppleUSBAudioEngine:KTMicro:Chu2 DSP:2020-02-20-0000-0000-0000:2
+[17:16:28.994] ProcessTap[Microsoft Edge]: RUNNING (passthrough, gain = 0.73839074)
+[17:16:28.995] ProcessTap[Discord]: RUNNING (passthrough, gain = 0.73839074)
+[17:16:31.659] ProcessTap[Microsoft Edge]: callbacks = 250 frames = 256000 peak = 0.1109
+[17:16:31.659] ProcessTap[Discord]: callbacks = 250 frames = 256000 peak = 0.0397
+[17:16:31.660] ProcessTap[Microsoft Edge]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]
+[17:16:31.660] ProcessTap[Discord]: layout = in.buffers=1 [in0 ch=2 bytes=4096] out.buffers=1 [out0 ch=2 bytes=4096]
