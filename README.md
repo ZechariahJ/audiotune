@@ -66,25 +66,6 @@ You may be asked to approve again if you **install a new version** (a different
 build has a different signature) or **build from source repeatedly** — each build
 looks slightly "new" to macOS. Normal day-to-day use never re-prompts.
 
-## Distribution (code-signing + notarization)
-
-Ad-hoc signing only runs on the machine that built it. To share the app you need
-an **Apple Developer Program** membership and a **Developer ID Application**
-certificate. Then:
-
-```sh
-# One-time: store notary credentials as a keychain profile
-xcrun notarytool store-credentials audiotune-notary \
-    --apple-id "you@example.com" --team-id "TEAMID" \
-    --password "app-specific-password"
-
-# Build signed (hardened runtime) + notarize + staple
-CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh release
-./notarize.sh
-```
-
-See `notarize.sh` for the full prerequisite list.
-
 ## Layout
 
 | File | Role |
@@ -96,5 +77,3 @@ See `notarize.sh` for the full prerequisite list.
 | `SettingsStore.swift` | Persisted per-app + master settings (UserDefaults) |
 | `LoginItem.swift` | Launch-at-login via SMAppService |
 | `CoreAudioHW.swift` | Default output device helpers |
-
-Debug log: `~/Documents/audiotune/audiotune.log`.
