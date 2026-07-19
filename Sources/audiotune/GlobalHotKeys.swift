@@ -22,6 +22,7 @@ final class GlobalHotKeys: @unchecked Sendable {
     private var bindings: [UInt32: Binding] = [:]
     private var repeatTimers: [UInt32: Timer] = [:]
     private var repeatStarts: [UInt32: DispatchWorkItem] = [:]
+    private var repeatTicks: [UInt32: Int] = [:]
     private var hotKeyRefs: [EventHotKeyRef?] = []
     private var eventHandlerRef: EventHandlerRef?
     private let signature: OSType = 0x4154_5548 // 'ATUH'
@@ -67,13 +68,17 @@ final class GlobalHotKeys: @unchecked Sendable {
 
     private func beginRepeat(_ b: Binding) {
         endRepeat(b.id)
+        repeatTicks[b.id] = 0
         let start = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            var ticks = 0
-            let timer = Timer(timeInterval: self.repeatInterval, repeats: true) { t in
-                ticks += 1
-                if ticks > 120 { t.invalidate(); return } // ~12s safety cap if a release is ever missed
-                MainActor.assumeIsolated { b.action() }
+            let timer = Timer(timeInterval: self.repeatInterval, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    let n = (self.repeatTicks[b.id] ?? 0) + 1
+                    self.repeatTicks[b.id] = n
+                    if n > 120 { self.endRepeat(b.id); return } // ~12s safety cap if a release is ever missed
+                    b.action()
+                }
             }
             RunLoop.main.add(timer, forMode: .common)
             self.repeatTimers[b.id] = timer
