@@ -6,10 +6,6 @@ import AppKit
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AudioTune.iconset"
 try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
 
-func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> CGColor {
-    NSColor(srgbRed: r, green: g, blue: b, alpha: 1).cgColor
-}
-
 func drawIcon(px: Int) -> Data {
     let S = CGFloat(px)
     let rep = NSBitmapImageRep(
@@ -35,12 +31,8 @@ func drawIcon(px: Int) -> Data {
     cg.saveGState()
     cg.addPath(squircle)
     cg.clip()
-    let grad = CGGradient(
-        colorsSpace: CGColorSpaceCreateDeviceRGB(),
-        colors: [color(0.31, 0.55, 0.98), color(0.55, 0.36, 0.96)] as CFArray,
-        locations: [0, 1]
-    )!
-    cg.drawLinearGradient(grad, start: CGPoint(x: 0, y: S), end: CGPoint(x: 0, y: 0), options: [])
+    cg.setFillColor(NSColor.black.cgColor)
+    cg.fill(rect)
     cg.restoreGState()
 
     // White slider glyph, centered, with a soft drop shadow.
