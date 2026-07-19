@@ -1,8 +1,10 @@
 import AppKit
 
-// Entry point. Menu-bar-only app: no Dock icon, no main window.
+// Entry point. Regular app: shows a Dock icon and a menu-bar item. The window
+// is created on demand (Dock click, Dock menu, or the menu-bar item), never at
+// launch.
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.accessory)
+app.setActivationPolicy(.regular)
 app.run()

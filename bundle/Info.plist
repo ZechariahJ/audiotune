@@ -18,8 +18,6 @@
     <string>audiotune</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.4</string>
-    <key>LSUIElement</key>
-    <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>AudioTune needs audio-recording access to tap and adjust the volume of individual apps.</string>
     <key>NSAudioCaptureUsageDescription</key>
