@@ -53,6 +53,19 @@ cd audiotune
 open AudioTune.app
 ```
 
+## Permissions
+
+AudioTune needs **audio-recording** permission to tap other apps' audio. The
+first time you move a volume slider, macOS shows the prompt — click **Allow**.
+
+This is a **one-time grant**, not per-launch. macOS remembers it across every
+future open, and you can review or revoke it under **System Settings → Privacy &
+Security → Microphone** (audio capture is grouped under "Microphone").
+
+You may be asked to approve again if you **install a new version** (a different
+build has a different signature) or **build from source repeatedly** — each build
+looks slightly "new" to macOS. Normal day-to-day use never re-prompts.
+
 ## Distribution (code-signing + notarization)
 
 Ad-hoc signing only runs on the machine that built it. To share the app you need
