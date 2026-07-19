@@ -234,8 +234,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .withSymbolConfiguration(config)
         image?.isTemplate = true
         button.image = image
-        // Force white in the menu bar (accent-tinted when something is turned down).
-        button.contentTintColor = mixer.isAnythingAttenuated ? .controlAccentColor : .white
+        // Adaptive: the template auto-tints to the menu bar (white on dark, dark
+        // on light); accent-tinted only when something is turned down.
+        button.contentTintColor = mixer.isAnythingAttenuated ? .controlAccentColor : nil
     }
 
     // MARK: - Actions
