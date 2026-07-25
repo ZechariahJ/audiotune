@@ -2,20 +2,31 @@ name: Release
 
 # Build AudioTune.app and attach it to a GitHub Release whenever you push a
 # version tag, e.g.:  git tag v0.1.0 && git push origin v0.1.0
+#
+# Manual runs (workflow_dispatch) only build and upload a CI artifact — they
+# never publish a Release, so a release can only ever come from a signed-off tag.
 on:
   push:
     tags:
       - "v*"
-  workflow_dispatch: {} # allow manual runs from the Actions tab
+  workflow_dispatch: {}
 
+# Least privilege by default; the publish job opts into contents: write.
 permissions:
-  contents: write # needed to create the Release
+  contents: read
 
 jobs:
   build:
     runs-on: macos-15 # has the macOS 14.4+ SDK the process-tap API needs
+    permissions:
+      contents: write # needed to create the Release (tag pushes only)
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to a commit SHA (not a mutable tag) so a compromised
+      # or retagged upstream release cannot silently change our build.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # don't leave the token in .git/config
 
       - name: Show toolchain
         run: swift --version
@@ -26,18 +37,19 @@ jobs:
       - name: Zip the app
         run: ditto -c -k --keepParent AudioTune.app AudioTune.zip
 
-      - name: Create / update the Release
+      - name: Upload build artifact (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: AudioTune-${{ github.sha }}
+          path: AudioTune.zip
+
+      - name: Create / update the Release (tag pushes only)
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            TAG="manual-$(git rev-parse --short HEAD)"
-            gh release create "$TAG" AudioTune.zip --title "$TAG" \
-              --notes "Manual build. Unsigned — see README for first-launch steps." || \
-            gh release upload "$TAG" AudioTune.zip --clobber
-          else
-            gh release create "$TAG" AudioTune.zip --generate-notes \
-              --title "AudioTune $TAG" || \
-            gh release upload "$TAG" AudioTune.zip --clobber
-          fi
+          gh release create "$TAG" AudioTune.zip --generate-notes \
+            --title "AudioTune $TAG" || \
+          gh release upload "$TAG" AudioTune.zip --clobber
