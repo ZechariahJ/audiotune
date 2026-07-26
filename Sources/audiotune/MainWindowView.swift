@@ -8,18 +8,24 @@ struct MainWindowView: View {
     @State private var selection: Tab = .mixer
 
     var body: some View {
-        TabView(selection: $selection) {
-            MixerView(mixer: mixer)
-                .tabItem { Label("Mixer", systemImage: "slider.vertical.3") }
-                .tag(Tab.mixer)
+        VStack(spacing: 0) {
+            TabView(selection: $selection) {
+                MixerView(mixer: mixer)
+                    .tabItem { Label("Mixer", systemImage: "slider.vertical.3") }
+                    .tag(Tab.mixer)
 
-            ProfilesView(mixer: mixer)
-                .tabItem { Label("Presets", systemImage: "square.stack.3d.up.fill") }
-                .tag(Tab.profiles)
+                ProfilesView(mixer: mixer)
+                    .tabItem { Label("Presets", systemImage: "square.stack.3d.up.fill") }
+                    .tag(Tab.profiles)
 
-            ShortcutsView(mixer: mixer)
-                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
-                .tag(Tab.shortcuts)
+                ShortcutsView(mixer: mixer)
+                    .tabItem { Label("Shortcuts", systemImage: "keyboard") }
+                    .tag(Tab.shortcuts)
+            }
+
+            Divider()
+            // One footer below the tabs, so it's identical on all three.
+            WindowFooter(mixer: mixer)
         }
         .frame(minWidth: 460, minHeight: 480)
     }

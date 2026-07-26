@@ -3,7 +3,6 @@ import SwiftUI
 /// The full windowed interface. Mirrors the menu-bar controls with more room.
 struct MixerView: View {
     @ObservedObject var mixer: AudioMixer
-    @State private var launchAtLogin = LoginItem.isEnabled
 
     private var playing: [AudioMixer.MixerApp] { mixer.apps.filter { $0.isPlaying || $0.settings.pinned } }
     private var others: [AudioMixer.MixerApp] { mixer.apps.filter { !($0.isPlaying || $0.settings.pinned) } }
@@ -23,11 +22,8 @@ struct MixerView: View {
                 }
                 .padding(20)
             }
-
-            Divider()
-            footer
         }
-        .frame(minWidth: 380, idealWidth: 420, minHeight: 480, idealHeight: 560)
+        .frame(minWidth: 380, idealWidth: 420, minHeight: 400, idealHeight: 520)
     }
 
     // MARK: - Master
@@ -87,42 +83,6 @@ struct MixerView: View {
         }
     }
 
-    // MARK: - Footer
-
-    private var appearanceBinding: Binding<AppearanceMode> {
-        Binding(get: { mixer.appearance }, set: { mixer.setAppearance($0) })
-    }
-
-    private var footer: some View {
-        VStack(spacing: 10) {
-            Picker("Appearance", selection: appearanceBinding) {
-                ForEach(AppearanceMode.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            HStack {
-                Button {
-                    mixer.resetAll()
-                } label: {
-                    Label("Reset all", systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(.borderless)
-
-                Spacer()
-
-                Toggle("Launch at Login", isOn: $launchAtLogin)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        launchAtLogin = LoginItem.setEnabled(newValue)
-                    }
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.regularMaterial)
-    }
 }
 
 /// One app's row: icon, name, slider, mute, pin.

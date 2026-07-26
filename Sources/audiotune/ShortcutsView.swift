@@ -7,16 +7,13 @@ struct ShortcutsView: View {
     @State private var search = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    globalSection
-                    perAppSection
-                }
-                .padding(20)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                globalSection
+                perAppSection
+                restoreRow
             }
-            Divider()
-            footer
+            .padding(20)
         }
     }
 
@@ -106,24 +103,25 @@ struct ShortcutsView: View {
         .padding(.vertical, 3)
     }
 
-    // MARK: - Footer
+    // MARK: - Restore
 
-    private var footer: some View {
-        HStack {
-            Button {
-                mixer.resetHotkeys()
-            } label: {
-                Label("Restore defaults", systemImage: "arrow.counterclockwise")
+    private var restoreRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Divider()
+            HStack {
+                Button {
+                    mixer.resetHotkeys()
+                } label: {
+                    Label("Restore default shortcuts", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.borderless)
+
+                Spacer()
+
+                Text("Shortcuts need a modifier (⌃ ⌥ ⇧ ⌘)")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderless)
-
-            Spacer()
-
-            Text("Shortcuts need a modifier (⌃ ⌥ ⇧ ⌘)")
-                .font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.regularMaterial)
+        .padding(.top, 4)
     }
 }
