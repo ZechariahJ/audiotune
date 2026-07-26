@@ -1,9 +1,10 @@
 # AudioTune
 
-Per-app volume control for macOS, in the menu bar. No kernel extension, no audio
-driver — it uses the modern Core Audio process-tap API (macOS 14.4+) to tap each
-app's audio, mute its direct output, and re-render it through a private aggregate
-device at an adjustable per-app gain.
+Per-app volume control for macOS — a quick mixer in the menu bar, plus a full
+window when you want more room. No kernel extension, no audio driver: it uses the
+modern Core Audio process-tap API (macOS 14.4+) to tap each app's audio, mute its
+direct output, and re-render it through a private aggregate device at an
+adjustable per-app gain.
 
 <p align="center">
   <img src="docs/demo.gif" alt="AudioTune lowering Photos' volume while Music and Safari stay at 100%" width="430">
@@ -11,10 +12,12 @@ device at an adjustable per-app gain.
 
 ## Features
 
-- **Per-app volume sliders** in the menu bar, live as you drag
+- **Per-app volume sliders**, live as you drag — from the menu bar or the window
 - **Per-app mute**
 - **Master channel** — one slider/mute scaling every app
 - **Pin** apps to keep them in the main menu (vs. the "All apps" submenu)
+- **Stays out of the way** — lives in the menu bar only; a Dock icon appears
+  just while the window is open
 - **Persistent** — levels are remembered per app (by bundle id) across launches
 - **Auto-attach** — a saved level re-applies the moment an app starts playing
 - **Follows your output device** — rebuilds taps when you switch headphones/speakers
@@ -27,6 +30,23 @@ device at an adjustable per-app gain.
   - A small on-screen HUD shows the change (like the system volume overlay)
 - **Light / Dark / System appearance** — System follows the OS and updates live
 - **Launch at Login** toggle
+
+## Using it
+
+AudioTune runs in the **menu bar**. Click its icon for the quick mixer: the master
+slider, every app that's playing, and a **Preset** submenu.
+
+For the full interface choose **Open Window** (⌘O) from that menu. The window has
+three tabs:
+
+| Tab | What's there |
+|---|---|
+| **Mixer** | Master plus every app, with slider, mute and pin |
+| **Presets** | Save the current mix as a named preset; apply, rename, update or delete it, and give it a shortcut |
+| **Shortcuts** | Rebind the global shortcuts and assign raise/lower/mute shortcuts per app |
+
+A shared footer — **Reset all**, appearance, **Launch at Login** — sits under all
+three tabs. Closing the window leaves AudioTune running in the menu bar.
 
 ## Requirements
 
@@ -80,17 +100,43 @@ looks slightly "new" to macOS. Normal day-to-day use never re-prompts.
 
 ## Layout
 
+**Audio engine**
+
 | File | Role |
 |---|---|
-| `AppDelegate.swift` | Menus, window, hotkey registration, login item, device listener |
+| `ProcessTap.swift` | Tap + aggregate device + realtime gain render callback |
+| `AudioProcessMonitor.swift` | Enumerates Core Audio process objects → app roster |
+| `CoreAudioHW.swift` | Default output device helpers |
+| `AudioMixer.swift` | Shared state: app roster, levels, presets, hotkey dispatch |
+
+**Interface**
+
+| File | Role |
+|---|---|
+| `main.swift` | Entry point; starts as a menu-bar-only (accessory) app |
+| `AppDelegate.swift` | Menus, window lifecycle, hotkey registration, device listener |
 | `MainWindowView.swift` | Window tabs: Mixer / Presets / Shortcuts |
+| `MixerView.swift` | Mixer tab |
 | `ProfilesView.swift` | Create, apply, rename and delete presets |
 | `ShortcutsView.swift` | Rebind global and per-app shortcuts |
-| `KeyRecorder.swift` | Click-to-record shortcut field |
-| `Profiles.swift` | Preset + hotkey models |
-| `AudioProcessMonitor.swift` | Enumerates Core Audio process objects → app roster |
-| `ProcessTap.swift` | Tap + aggregate device + realtime gain render callback |
+| `WindowFooter.swift` | Shared footer: reset, appearance, launch at login |
 | `AppVolumeRowView.swift` | A menu row: icon, name, slider, mute, pin |
-| `SettingsStore.swift` | Persisted per-app + master settings (UserDefaults) |
+| `KeyRecorder.swift` | Click-to-record shortcut field |
+| `VolumeHUD.swift` | On-screen overlay shown when a shortcut changes volume |
+
+**Supporting**
+
+| File | Role |
+|---|---|
+| `GlobalHotKeys.swift` | System-wide hotkeys (Carbon), with hold-to-repeat |
+| `Profiles.swift` | Preset + hotkey models |
+| `SettingsStore.swift` | Persisted levels, presets and shortcuts (UserDefaults) |
 | `LoginItem.swift` | Launch-at-login via SMAppService |
-| `CoreAudioHW.swift` | Default output device helpers |
+| `Log.swift` | Size-capped diagnostic log in `~/Library/Logs/AudioTune` |
+
+## Privacy
+
+AudioTune makes **no network requests** — no telemetry, no analytics, no
+auto-update — and asks for exactly one permission (audio recording, required by
+the tap API). Tapped audio is never written to disk. See
+[SECURITY.md](SECURITY.md) for details and how to report a vulnerability.
