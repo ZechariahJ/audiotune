@@ -55,12 +55,14 @@ jobs:
       - name: Commit if changed
         run: |
           set -euo pipefail
-          if git diff --quiet -- docs/metrics.csv; then
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Stage first: `git diff` alone can't see a newly created (untracked)
+          # file, so the first run would silently never commit.
+          git add docs/metrics.csv
+          if git diff --cached --quiet; then
             echo "No change to commit."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/metrics.csv
           git commit -m "chore: metrics snapshot $(date -u +%Y-%m-%d)"
           git push
