@@ -1,10 +1,11 @@
 import AppKit
 
-// Entry point. Regular app: shows a Dock icon and a menu-bar item. The window
-// is created on demand (Dock click, Dock menu, or the menu-bar item), never at
-// launch.
+// Entry point. Starts as an accessory app: menu-bar item only, no Dock icon and
+// no Cmd-Tab entry while it's just running in the background. Opening the window
+// promotes it to a regular app (Dock icon appears); closing the window demotes
+// it again. See AppDelegate.showWindow / windowWillClose.
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.regular)
+app.setActivationPolicy(.accessory)
 app.run()

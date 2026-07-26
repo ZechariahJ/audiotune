@@ -3,7 +3,7 @@ import SwiftUI
 import Carbon
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private let statusMenu = NSMenu()
     private let mixer = AudioMixer()
@@ -77,11 +77,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             w.contentMinSize = NSSize(width: 470, height: 480)
             w.contentMaxSize = NSSize(width: 900, height: 5000)
             w.isReleasedWhenClosed = false
+            w.delegate = self
             w.center()
             window = w
         }
+        // Become a regular app so the window gets a Dock icon, a main menu and a
+        // Cmd-Tab entry while it's on screen.
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
+        }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Closing the window drops the Dock icon again — the app keeps running in
+    /// the menu bar.
+    func windowWillClose(_ notification: Notification) {
+        guard (notification.object as? NSWindow) === window else { return }
+        // Defer past the close so AppKit finishes tearing the window down first.
+        DispatchQueue.main.async {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     /// Clicking the Dock icon (when no window is open) opens the window.
