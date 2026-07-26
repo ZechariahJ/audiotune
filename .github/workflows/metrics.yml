@@ -1,0 +1,66 @@
+name: Metrics
+
+# Snapshot download/star counts once a day and append them to docs/metrics.csv.
+# GitHub only exposes *running totals* for release downloads with no history, so
+# this turns them into a time series we can chart later.
+on:
+  schedule:
+    - cron: "17 7 * * *" # 07:17 UTC daily (off-the-hour to avoid cron pileups)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # commits the updated CSV
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Append snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          CSV=docs/metrics.csv
+          if [ ! -f "$CSV" ]; then
+            echo "date,stars,forks,watchers,total_downloads,latest_tag,latest_downloads" > "$CSV"
+          fi
+
+          DATE=$(date -u +%Y-%m-%d)
+          # Skip if today's row already exists (manual re-runs shouldn't duplicate).
+          if cut -d, -f1 "$CSV" | grep -qx "$DATE"; then
+            echo "Snapshot for $DATE already recorded; nothing to do."
+            exit 0
+          fi
+
+          REPO_JSON=$(gh api "repos/$REPO")
+          STARS=$(echo "$REPO_JSON" | jq -r '.stargazers_count')
+          FORKS=$(echo "$REPO_JSON" | jq -r '.forks_count')
+          WATCHERS=$(echo "$REPO_JSON" | jq -r '.subscribers_count')
+
+          RELEASES=$(gh api "repos/$REPO/releases?per_page=100")
+          TOTAL=$(echo "$RELEASES" | jq '[.[].assets[].download_count] | add // 0')
+          LATEST_TAG=$(echo "$RELEASES" | jq -r 'map(select(.draft == false and .prerelease == false)) | first | .tag_name // "none"')
+          LATEST_DL=$(echo "$RELEASES" | jq 'map(select(.draft == false and .prerelease == false)) | first | [.assets[]?.download_count] | add // 0')
+
+          echo "$DATE,$STARS,$FORKS,$WATCHERS,$TOTAL,$LATEST_TAG,$LATEST_DL" >> "$CSV"
+          echo "Recorded: $DATE stars=$STARS downloads=$TOTAL latest=$LATEST_TAG($LATEST_DL)"
+
+      - name: Commit if changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/metrics.csv; then
+            echo "No change to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/metrics.csv
+          git commit -m "chore: metrics snapshot $(date -u +%Y-%m-%d)"
+          git push
