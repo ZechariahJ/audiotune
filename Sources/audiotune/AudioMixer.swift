@@ -23,6 +23,12 @@ final class AudioMixer: ObservableObject {
     @Published private(set) var apps: [MixerApp] = []
     @Published private(set) var master = AppAudioSettings()
     @Published private(set) var appearance: AppearanceMode = .system
+    @Published private(set) var profiles: [Profile] = []
+    @Published private(set) var activeProfileID: String?
+    @Published private(set) var hotkeys: [HotkeyBinding] = []
+
+    /// Fired when hotkey bindings change so the app can re-register them.
+    var onHotkeysChanged: (() -> Void)?
 
     private let monitor = AudioProcessMonitor()
     private let store = SettingsStore()
@@ -33,6 +39,9 @@ final class AudioMixer: ObservableObject {
     func start() {
         master = store.master
         appearance = store.appearance
+        profiles = store.profiles
+        activeProfileID = store.activeProfileID
+        hotkeys = store.hotkeyBindings
         applyAppearance()
         monitor.onChange = { [weak self] in self?.onRosterChange() }
         monitor.start()
@@ -124,6 +133,150 @@ final class AudioMixer: ObservableObject {
     func togglePin(_ key: String) {
         store.update(key) { $0.pinned.toggle() }
         rebuildApps() // pinning moves the app between sections
+    }
+
+    // MARK: - Profiles
+
+    var activeProfileName: String? {
+        activeProfileID.flatMap { id in profiles.first { $0.id == id }?.name }
+    }
+
+    /// Create a profile from the current levels.
+    @discardableResult
+    func createProfile(named name: String) -> Profile {
+        let snap = store.currentAsSnapshot()
+        let profile = Profile(name: name, apps: snap.apps, master: snap.master)
+        store.addProfile(profile)
+        profiles = store.profiles
+        return profile
+    }
+
+    func renameProfile(id: String, to name: String) {
+        guard var p = store.profile(id: id) else { return }
+        p.name = name
+        store.updateProfile(p)
+        profiles = store.profiles
+    }
+
+    /// Overwrite a profile's stored levels with what's currently set.
+    func updateProfileFromCurrent(id: String) {
+        guard var p = store.profile(id: id) else { return }
+        let snap = store.currentAsSnapshot()
+        p.apps = snap.apps
+        p.master = snap.master
+        store.updateProfile(p)
+        profiles = store.profiles
+    }
+
+    func deleteProfile(id: String) {
+        store.deleteProfile(id: id)
+        profiles = store.profiles
+        activeProfileID = store.activeProfileID
+        hotkeys = store.hotkeyBindings
+        onHotkeysChanged?()
+    }
+
+    /// Apply a profile's levels to every app and the master, live.
+    func activateProfile(id: String) {
+        guard let p = store.profile(id: id) else { return }
+        store.applyProfile(p)
+        activeProfileID = id
+        master = store.master
+        Log.msg("activated profile '\(p.name)'")
+        reapplyAllGains()
+        rebuildApps()
+    }
+
+    /// Leave profile mode: levels stay as they are, nothing is "active".
+    func activateDefault() {
+        store.setActiveProfile(nil)
+        activeProfileID = nil
+    }
+
+    /// Push current effective gains to every live tap and attach any playing app
+    /// that now needs attenuating.
+    private func reapplyAllGains() {
+        for (key, tap) in taps { tap.setGain(effectiveTapGain(key)) }
+        for proc in dedupedByKey(monitor.processes.filter { $0.isRunningOutput }) where taps[proc.key] == nil {
+            if effectiveTapGain(proc.key) != 1.0 { applyToTap(proc.key, proc.name) }
+        }
+    }
+
+    // MARK: - Hotkeys
+
+    func combo(for action: HotkeyAction) -> HotkeyCombo? {
+        hotkeys.first { $0.action == action }?.combo
+    }
+
+    func setCombo(_ combo: HotkeyCombo?, for action: HotkeyAction) {
+        store.setCombo(combo, for: action)
+        hotkeys = store.hotkeyBindings
+        onHotkeysChanged?()
+    }
+
+    func resetHotkeys() {
+        store.resetHotkeysToDefaults()
+        hotkeys = store.hotkeyBindings
+        onHotkeysChanged?()
+    }
+
+    /// Execute a bound action. Returns HUD content when there's something to show.
+    func perform(_ action: HotkeyAction) -> HUDInfo? {
+        let step: Float = 0.05
+        switch action {
+        case .frontmostVolumeUp:   return adjustFrontmostVolume(by: step)
+        case .frontmostVolumeDown: return adjustFrontmostVolume(by: -step)
+        case .frontmostMute:       return toggleFrontmostMute()
+
+        case .masterVolumeUp:      return nudgeMaster(by: step)
+        case .masterVolumeDown:    return nudgeMaster(by: -step)
+        case .masterMute:
+            toggleMasterMute()
+            return masterHUD()
+
+        case .appVolumeUp(let key):   return nudgeApp(key, by: step)
+        case .appVolumeDown(let key): return nudgeApp(key, by: -step)
+        case .appMute(let key):
+            guard let app = apps.first(where: { $0.key == key }) else { return nil }
+            toggleMute(key, app.name)
+            let s = store.settings(for: key)
+            return HUDInfo(name: app.name, icon: app.icon, volume: s.effectiveGain, muted: s.muted)
+
+        case .activateProfile(let id):
+            guard let p = store.profile(id: id) else { return nil }
+            activateProfile(id: id)
+            return HUDInfo(name: p.name, icon: Self.symbolIcon("square.stack.3d.up.fill"),
+                           volume: store.master.effectiveGain, muted: store.master.muted)
+        case .activateDefault:
+            activateDefault()
+            return HUDInfo(name: "Default", icon: Self.symbolIcon("square.stack.3d.up.slash"),
+                           volume: store.master.effectiveGain, muted: store.master.muted)
+        }
+    }
+
+    private func nudgeMaster(by delta: Float) -> HUDInfo? {
+        let next = max(0, min(1, ((store.master.gain + delta) * 100).rounded() / 100))
+        setMasterGain(next)
+        return masterHUD()
+    }
+
+    private func nudgeApp(_ key: String, by delta: Float) -> HUDInfo? {
+        guard let app = apps.first(where: { $0.key == key }) else { return nil }
+        let next = max(0, min(1, ((store.settings(for: key).gain + delta) * 100).rounded() / 100))
+        setGain(key, app.name, next)
+        let s = store.settings(for: key)
+        return HUDInfo(name: app.name, icon: app.icon, volume: s.effectiveGain, muted: s.muted)
+    }
+
+    private func masterHUD() -> HUDInfo {
+        HUDInfo(name: "All Apps", icon: Self.symbolIcon("hifispeaker.2.fill"),
+                volume: store.master.effectiveGain, muted: store.master.muted)
+    }
+
+    private static func symbolIcon(_ name: String) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
+        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
     }
 
     // MARK: - Frontmost-app control (for global hotkeys)

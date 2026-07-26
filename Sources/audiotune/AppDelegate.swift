@@ -23,34 +23,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusMenu.delegate = self
         statusItem.menu = statusMenu
 
+        mixer.onHotkeysChanged = { [weak self] in self?.registerHotKeys() }
         mixer.start()
         updateStatusIcon()
         registerHotKeys()
         // Note: the window is intentionally NOT shown at launch.
     }
 
-    // MARK: - Global hotkeys
+    // MARK: - Global hotkeys (built from the user's bindings)
 
     private func registerHotKeys() {
-        let ctrlOpt = UInt32(controlKey | optionKey)
-        hotKeys.register([
-            .init(id: 1, keyCode: UInt32(kVK_UpArrow), modifiers: ctrlOpt, repeats: true,
-                  action: { [weak self] in self?.bumpFrontmost(0.05) }),
-            .init(id: 2, keyCode: UInt32(kVK_DownArrow), modifiers: ctrlOpt, repeats: true,
-                  action: { [weak self] in self?.bumpFrontmost(-0.05) }),
-            .init(id: 3, keyCode: UInt32(kVK_ANSI_M), modifiers: ctrlOpt, repeats: false,
-                  action: { [weak self] in self?.muteFrontmost() }),
-        ])
+        var nextID: UInt32 = 1
+        var list: [GlobalHotKeys.Binding] = []
+        for binding in mixer.hotkeys {
+            let action = binding.action
+            list.append(.init(id: nextID,
+                              keyCode: binding.combo.keyCode,
+                              modifiers: binding.combo.modifiers,
+                              repeats: action.repeats,
+                              action: { [weak self] in self?.performAction(action) }))
+            nextID += 1
+        }
+        let failed = hotKeys.register(list)
+        if !failed.isEmpty {
+            Log.msg("hotkeys: \(failed.count) binding(s) rejected — already claimed system-wide")
+        }
     }
 
-    private func bumpFrontmost(_ delta: Float) {
-        guard let info = mixer.adjustFrontmostVolume(by: delta) else { return }
-        hud.show(name: info.name, icon: info.icon, volume: info.volume, muted: info.muted)
-        updateStatusIcon()
-    }
-
-    private func muteFrontmost() {
-        guard let info = mixer.toggleFrontmostMute() else { return }
+    private func performAction(_ action: HotkeyAction) {
+        guard let info = mixer.perform(action) else { return }
         hud.show(name: info.name, icon: info.icon, volume: info.volume, muted: info.muted)
         updateStatusIcon()
     }
@@ -59,11 +60,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func showWindow() {
         if window == nil {
-            let hosting = NSHostingController(rootView: MixerView(mixer: mixer))
+            let hosting = NSHostingController(rootView: MainWindowView(mixer: mixer))
             hosting.sizingOptions = [] // don't let SwiftUI's ideal size drive the window
 
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 420, height: 560),
+                contentRect: NSRect(x: 0, y: 0, width: 520, height: 620),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
@@ -72,9 +73,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             w.contentViewController = hosting
             // Must set the size AFTER the content controller, which otherwise
             // collapses the window to its (zero) preferred content size.
-            w.setContentSize(NSSize(width: 420, height: 560))
-            w.contentMinSize = NSSize(width: 380, height: 460)
-            w.contentMaxSize = NSSize(width: 640, height: 5000)
+            w.setContentSize(NSSize(width: 520, height: 620))
+            w.contentMinSize = NSSize(width: 470, height: 480)
+            w.contentMaxSize = NSSize(width: 900, height: 5000)
             w.isReleasedWhenClosed = false
             w.center()
             window = w
@@ -89,17 +90,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return true
     }
 
-    /// Right-click / long-press on the Dock icon.
+    /// Right-click / long-press on the Dock icon: switch presets without
+    /// opening the window.
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
         let open = NSMenuItem(title: "Open AudioTune", action: #selector(showWindow), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
+
+        menu.addItem(.separator())
+        let header = NSMenuItem(title: "Presets", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        for item in presetMenuItems() { menu.addItem(item) }
+
         menu.addItem(.separator())
         let reset = NSMenuItem(title: "Reset all volumes", action: #selector(resetTapped), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
         return menu
+    }
+
+    /// "Default" plus every saved preset, with the active one checked.
+    /// Shared by the Dock menu and the menu-bar menu.
+    private func presetMenuItems() -> [NSMenuItem] {
+        var items: [NSMenuItem] = []
+
+        let def = NSMenuItem(title: "Default", action: #selector(selectDefaultPreset), keyEquivalent: "")
+        def.target = self
+        def.state = mixer.activeProfileID == nil ? .on : .off
+        items.append(def)
+
+        for profile in mixer.profiles {
+            let item = NSMenuItem(title: profile.name, action: #selector(selectPreset(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = profile.id
+            item.state = mixer.activeProfileID == profile.id ? .on : .off
+            if let combo = mixer.combo(for: .activateProfile(profile.id)) {
+                item.toolTip = "Shortcut: \(combo.display)"
+            }
+            items.append(item)
+        }
+
+        if mixer.profiles.isEmpty {
+            let hint = NSMenuItem(title: "No presets — create one in the window", action: nil, keyEquivalent: "")
+            hint.isEnabled = false
+            items.append(hint)
+        }
+        return items
+    }
+
+    @objc private func selectDefaultPreset() {
+        mixer.activateDefault()
+        updateStatusIcon()
+    }
+
+    @objc private func selectPreset(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        mixer.activateProfile(id: id)
+        updateStatusIcon()
     }
 
     // MARK: - Menu-bar menu (rebuilt fresh on open, sourced from the mixer)
@@ -115,6 +164,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let open = NSMenuItem(title: "Open Window", action: #selector(showWindow), keyEquivalent: "o")
         open.target = self
         menu.addItem(open)
+
+        let presetsItem = NSMenuItem(
+            title: "Preset: \(mixer.activeProfileName ?? "Default")", action: nil, keyEquivalent: ""
+        )
+        let presetsSub = NSMenu()
+        for item in presetMenuItems() { presetsSub.addItem(item) }
+        presetsItem.submenu = presetsSub
+        menu.addItem(presetsItem)
+
         menu.addItem(.separator())
 
         menu.addItem(masterRow())
@@ -165,15 +223,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let shortcutsItem = NSMenuItem(title: "Keyboard Shortcuts", action: nil, keyEquivalent: "")
         let shortcutsSub = NSMenu()
-        for (label, combo) in [
-            ("Raise focused app", "⌃⌥↑"),
-            ("Lower focused app", "⌃⌥↓"),
-            ("Mute / unmute focused app", "⌃⌥M"),
-        ] {
-            let mi = NSMenuItem(title: "\(label)\t\(combo)", action: nil, keyEquivalent: "")
+        for action in HotkeyAction.globalActions {
+            let combo = mixer.combo(for: action)?.display ?? "Not set"
+            let mi = NSMenuItem(title: "\(action.globalLabel ?? "")\t\(combo)", action: nil, keyEquivalent: "")
             mi.isEnabled = false
             shortcutsSub.addItem(mi)
         }
+        shortcutsSub.addItem(.separator())
+        let edit = NSMenuItem(title: "Edit Shortcuts…", action: #selector(showWindow), keyEquivalent: "")
+        edit.target = self
+        shortcutsSub.addItem(edit)
         shortcutsItem.submenu = shortcutsSub
         menu.addItem(shortcutsItem)
 

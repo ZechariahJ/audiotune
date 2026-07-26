@@ -18,9 +18,12 @@ device at an adjustable per-app gain.
 - **Persistent** — levels are remembered per app (by bundle id) across launches
 - **Auto-attach** — a saved level re-applies the moment an app starts playing
 - **Follows your output device** — rebuilds taps when you switch headphones/speakers
-- **Global keyboard shortcuts** — control the app you're currently using from anywhere:
-  - **⌃⌥↑ / ⌃⌥↓** — raise / lower the focused app's volume
+- **Presets** — save your mix as "Work", "Gaming", "Streaming" and switch in one
+  click from the window, the menu bar, the Dock menu, or a shortcut
+- **Global keyboard shortcuts** — control audio from anywhere, fully rebindable:
+  - **⌃⌥↑ / ⌃⌥↓** — raise / lower the focused app's volume (5% steps, repeats while held)
   - **⌃⌥M** — mute / unmute the focused app
+  - Bind your own for the master channel, for **specific apps**, and for presets
   - A small on-screen HUD shows the change (like the system volume overlay)
 - **Light / Dark / System appearance** — System follows the OS and updates live
 - **Launch at Login** toggle
@@ -79,7 +82,12 @@ looks slightly "new" to macOS. Normal day-to-day use never re-prompts.
 
 | File | Role |
 |---|---|
-| `AppDelegate.swift` | Menu, state, master/reset, login item, device listener |
+| `AppDelegate.swift` | Menus, window, hotkey registration, login item, device listener |
+| `MainWindowView.swift` | Window tabs: Mixer / Presets / Shortcuts |
+| `ProfilesView.swift` | Create, apply, rename and delete presets |
+| `ShortcutsView.swift` | Rebind global and per-app shortcuts |
+| `KeyRecorder.swift` | Click-to-record shortcut field |
+| `Profiles.swift` | Preset + hotkey models |
 | `AudioProcessMonitor.swift` | Enumerates Core Audio process objects → app roster |
 | `ProcessTap.swift` | Tap + aggregate device + realtime gain render callback |
 | `AppVolumeRowView.swift` | A menu row: icon, name, slider, mute, pin |

@@ -27,8 +27,14 @@ final class GlobalHotKeys: @unchecked Sendable {
     private var eventHandlerRef: EventHandlerRef?
     private let signature: OSType = 0x4154_5548 // 'ATUH'
 
-    func register(_ bindings: [Binding]) {
+    /// Replace the entire set of registered hotkeys. Safe to call repeatedly —
+    /// the UI calls this every time the user edits a shortcut.
+    /// Returns the ids that could not be registered (already taken system-wide).
+    @discardableResult
+    func register(_ bindings: [Binding]) -> [UInt32] {
+        unregisterAll()
         installHandlerIfNeeded()
+        var failed: [UInt32] = []
         for b in bindings {
             self.bindings[b.id] = b
             var ref: EventHotKeyRef?
@@ -38,9 +44,18 @@ final class GlobalHotKeys: @unchecked Sendable {
             if status == noErr {
                 hotKeyRefs.append(ref)
             } else {
+                failed.append(b.id)
                 Log.msg("GlobalHotKeys: failed to register id \(b.id) (status \(status)) — likely a conflict")
             }
         }
+        return failed
+    }
+
+    func unregisterAll() {
+        for id in repeatTimers.keys { endRepeat(id) }
+        for ref in hotKeyRefs { if let ref { UnregisterEventHotKey(ref) } }
+        hotKeyRefs.removeAll()
+        bindings.removeAll()
     }
 
     private func installHandlerIfNeeded() {
