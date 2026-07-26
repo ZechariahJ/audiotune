@@ -4,3 +4,6 @@ AudioTune.app/
 .DS_Store
 audiotune.log
 docs/*.iconset/
+# Intermediate icon frames from tools/makeicon.swift — the committed
+# bundle/AppIcon.icns is what the build actually uses.
+build/
