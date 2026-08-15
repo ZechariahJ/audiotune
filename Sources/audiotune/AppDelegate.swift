@@ -24,6 +24,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         statusItem.menu = statusMenu
 
         mixer.onHotkeysChanged = { [weak self] in self?.registerHotKeys() }
+        mixer.onDeviceProfileApplied = { [weak self] presetName, deviceName in
+            guard let self else { return }
+            self.hud.show(name: "\(presetName) — \(deviceName)",
+                          icon: NSImage(systemSymbolName: "headphones", accessibilityDescription: nil),
+                          volume: self.mixer.master.effectiveGain,
+                          muted: self.mixer.master.muted)
+            self.updateStatusIcon()
+        }
         mixer.start()
         updateStatusIcon()
         registerHotKeys()

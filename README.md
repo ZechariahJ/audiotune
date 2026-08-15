@@ -23,6 +23,10 @@ adjustable per-app gain.
 - **Follows your output device** — rebuilds taps when you switch headphones/speakers
 - **Presets** — save your mix as "Work", "Gaming", "Streaming" and switch in one
   click from the window, the menu bar, the Dock menu, or a shortcut
+- **Per-device presets** — bind a preset to an output device and it applies
+  itself the moment that device becomes the default. Plug in your earbuds and
+  your earbud mix loads automatically; devices you haven't bound behave exactly
+  as before.
 - **Global keyboard shortcuts** — control audio from anywhere, fully rebindable:
   - **⌃⌥↑ / ⌃⌥↓** — raise / lower the focused app's volume (5% steps, repeats while held)
   - **⌃⌥M** — mute / unmute the focused app
@@ -42,7 +46,7 @@ three tabs:
 | Tab | What's there |
 |---|---|
 | **Mixer** | Master plus every app, with slider, mute and pin |
-| **Presets** | Save the current mix as a named preset; apply, rename, update or delete it, and give it a shortcut |
+| **Presets** | Save the current mix as a named preset; apply, rename, update or delete it, give it a shortcut, or bind it to an output device so it loads automatically |
 | **Shortcuts** | Rebind the global shortcuts and assign raise/lower/mute shortcuts per app |
 
 A shared footer — **Reset all**, appearance, **Launch at Login** — sits under all

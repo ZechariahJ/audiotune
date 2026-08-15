@@ -26,6 +26,8 @@ final class AudioMixer: ObservableObject {
     @Published private(set) var profiles: [Profile] = []
     @Published private(set) var activeProfileID: String?
     @Published private(set) var hotkeys: [HotkeyBinding] = []
+    @Published private(set) var outputDevices: [AudioOutputDevice] = []
+    @Published private(set) var currentOutputUID: String?
 
     /// Fired when hotkey bindings change so the app can re-register them.
     var onHotkeysChanged: (() -> Void)?
@@ -42,6 +44,7 @@ final class AudioMixer: ObservableObject {
         profiles = store.profiles
         activeProfileID = store.activeProfileID
         hotkeys = store.hotkeyBindings
+        refreshOutputDevices()
         applyAppearance()
         monitor.onChange = { [weak self] in self?.onRosterChange() }
         monitor.start()
@@ -200,6 +203,34 @@ final class AudioMixer: ObservableObject {
         for proc in dedupedByKey(monitor.processes.filter { $0.isRunningOutput }) where taps[proc.key] == nil {
             if effectiveTapGain(proc.key) != 1.0 { applyToTap(proc.key, proc.name) }
         }
+    }
+
+    // MARK: - Output devices
+
+    func refreshOutputDevices() {
+        outputDevices = CoreAudioHW.outputDevices()
+        currentOutputUID = CoreAudioHW.defaultOutputDeviceUID()
+    }
+
+    /// Name for a UID, even if that device isn't currently connected.
+    func deviceName(for uid: String) -> String {
+        outputDevices.first { $0.uid == uid }?.name ?? "\(uid) (not connected)"
+    }
+
+    /// Bind a preset to an output device — passing nil unbinds. A device can
+    /// only drive one preset, so any other preset holding it is cleared.
+    func setAutoDevice(_ uid: String?, for profileID: String) {
+        if let uid {
+            for other in profiles where other.id != profileID && other.autoDeviceUID == uid {
+                var cleared = other
+                cleared.autoDeviceUID = nil
+                store.updateProfile(cleared)
+            }
+        }
+        guard var p = store.profile(id: profileID) else { return }
+        p.autoDeviceUID = uid
+        store.updateProfile(p)
+        profiles = store.profiles
     }
 
     // MARK: - Hotkeys
@@ -427,12 +458,36 @@ final class AudioMixer: ObservableObject {
             AudioObjectID(kAudioObjectSystemObject), &address, DispatchQueue.main
         ) { [weak self] _, _ in
             MainActor.assumeIsolated {
-                guard let self, !self.taps.isEmpty else { return }
-                Log.msg("default output changed — rebuilding \(self.taps.count) tap(s)")
-                self.rebuildAllTaps()
+                self?.handleOutputDeviceChange()
             }
         }
     }
+
+    /// The output device changed (headphones plugged in, AirPlay picked, …):
+    /// apply that device's preset if one is bound, then move existing taps onto
+    /// the new device. Devices with no preset bound are left alone, so the
+    /// default behaviour is exactly what it was before.
+    private func handleOutputDeviceChange() {
+        refreshOutputDevices()
+        let uid = currentOutputUID
+        Log.msg("default output changed -> \(uid ?? "nil")")
+
+        if let uid, let bound = profiles.first(where: { $0.autoDeviceUID == uid }) {
+            if bound.id != activeProfileID {
+                Log.msg("auto-switching to preset '\(bound.name)' for this device")
+                activateProfile(id: bound.id)
+                onDeviceProfileApplied?(bound.name, deviceName(for: uid))
+            }
+        }
+
+        if !taps.isEmpty {
+            Log.msg("rebuilding \(taps.count) tap(s) on the new device")
+            rebuildAllTaps()
+        }
+    }
+
+    /// Fired when a device change auto-applied a preset, so the UI can show a HUD.
+    var onDeviceProfileApplied: ((_ presetName: String, _ deviceName: String) -> Void)?
 
     private func rebuildAllTaps() {
         let entries = taps.map { (key: $0.key, name: $0.value.appName) }

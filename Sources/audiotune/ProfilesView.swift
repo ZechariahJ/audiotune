@@ -113,6 +113,11 @@ struct ProfilesView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(profile.name).font(.body.weight(.medium))
                         Text(summary(profile)).font(.caption).foregroundStyle(.secondary)
+                        if let uid = profile.autoDeviceUID {
+                            Label("Auto on \(mixer.deviceName(for: uid))", systemImage: "headphones")
+                                .font(.caption2)
+                                .foregroundStyle(Color.accentColor)
+                        }
                     }
                     Spacer()
 
@@ -123,6 +128,23 @@ struct ProfilesView: View {
                     Button("Apply") { mixer.activateProfile(id: profile.id) }
 
                     Menu {
+                        Section("Auto-apply when output is") {
+                            Button {
+                                mixer.setAutoDevice(nil, for: profile.id)
+                            } label: {
+                                Label("Any device (off)",
+                                      systemImage: profile.autoDeviceUID == nil ? "checkmark" : "")
+                            }
+                            ForEach(mixer.outputDevices) { device in
+                                Button {
+                                    mixer.setAutoDevice(device.uid, for: profile.id)
+                                } label: {
+                                    Label(device.name,
+                                          systemImage: profile.autoDeviceUID == device.uid ? "checkmark" : "")
+                                }
+                            }
+                        }
+                        Divider()
                         Button("Update from current levels") {
                             mixer.updateProfileFromCurrent(id: profile.id)
                         }

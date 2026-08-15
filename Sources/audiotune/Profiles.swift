@@ -11,6 +11,10 @@ struct Profile: Codable, Identifiable, Equatable {
     var name: String
     var apps: [String: AppAudioSettings] = [:]
     var master = AppAudioSettings()
+    /// When set, this preset is applied automatically the moment this output
+    /// device becomes the system default (e.g. plugging in earbuds).
+    /// Optional so presets saved before this feature still decode.
+    var autoDeviceUID: String?
 }
 
 // MARK: - Hotkeys
