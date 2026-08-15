@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         mixer.start()
         updateStatusIcon()
         registerHotKeys()
+        observeSystemAppearanceChanges()
         // Note: the window is intentionally NOT shown at launch.
     }
 
@@ -309,9 +310,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             .withSymbolConfiguration(config)
         image?.isTemplate = true
         button.image = image
-        // Adaptive: the template auto-tints to the menu bar (white on dark, dark
-        // on light); accent-tinted only when something is turned down.
-        button.contentTintColor = mixer.isAnythingAttenuated ? .controlAccentColor : nil
+
+        // Tint explicitly rather than relying on template auto-tinting: the
+        // status-bar button resolves to VibrantLight even when the menu bar is
+        // dark, which would draw the glyph black. Follow the *system* appearance
+        // (not the app's Light/Dark preference, which only governs the window).
+        button.contentTintColor = Self.systemPrefersDark ? .white : .black
+    }
+
+    /// Reads the global appearance, independent of any NSApp.appearance override.
+    private static var systemPrefersDark: Bool {
+        UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?["AppleInterfaceStyle"]
+            as? String == "Dark"
+    }
+
+    /// Keep the menu-bar glyph correct when the user flips the system theme.
+    private func observeSystemAppearanceChanges() {
+        DistributedNotificationCenter.default.addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateStatusIcon() }
+        }
     }
 
     // MARK: - Actions
